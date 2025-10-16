@@ -20,10 +20,8 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 # SSL Configuration for HTTPS
-ssl_context = None
-if os.path.exists("ssl/cert.pem") and os.path.exists("ssl/key.pem"):
-    ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-    ssl_context.load_cert_chain("ssl/cert.pem", "ssl/key.pem")
+ssl_enabled = os.path.exists("ssl/cert.pem") and os.path.exists("ssl/key.pem")
+if ssl_enabled:
     print("🔒 HTTPS enabled with SSL certificates")
 else:
     print("⚠️  SSL certificates not found, running HTTP only")

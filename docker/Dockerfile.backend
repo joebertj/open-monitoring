@@ -15,24 +15,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ .
 COPY ssl/ ./ssl/
 
+# Make the startup script executable
+RUN chmod +x start_server.py
+
 # Expose ports (HTTP and HTTPS)
 EXPOSE 8000 8443
 
-# Run the application with HTTPS support
-CMD ["python", "-c", "
-import uvicorn
-import os
-import ssl
-
-# Check if SSL certificates exist
-ssl_enabled = os.path.exists('ssl/cert.pem') and os.path.exists('ssl/key.pem')
-
-if ssl_enabled:
-    ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-    ssl_context.load_cert_chain('ssl/cert.pem', 'ssl/key.pem')
-    print('🔒 Starting HTTPS server on port 8443')
-    uvicorn.run('main:app', host='0.0.0.0', port=8443, ssl=ssl_context, reload=True)
-else:
-    print('⚠️  SSL certificates not found, starting HTTP server on port 8000')
-    uvicorn.run('main:app', host='0.0.0.0', port=8000, reload=True)
-"]
+# Run the startup script
+CMD ["python", "start_server.py"]

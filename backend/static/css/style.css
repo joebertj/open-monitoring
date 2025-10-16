@@ -256,7 +256,7 @@ body {
 
 /* Component Styles */
 .monitoring-card {
-  @apply bg-white rounded-lg shadow-lg border-2 border-gray-300 p-6;
+  @apply bg-white rounded-lg shadow-lg border-2 border-gray-300 p-10;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1), 0 4px 10px rgba(0, 0, 0, 0.05);
   transition: all 0.3s ease;
 }
