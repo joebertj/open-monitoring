@@ -35,8 +35,7 @@ check_subdomain() {
 
 # Get subdomains from API (BusyBox compatible)
 get_subdomains() {
-    response=$(curl -s --max-time 30 "$CENTRAL_API/api/subdomains" 2>/dev/null)
-    echo "$response" | grep -o '"subdomain":"[^"]*"' | sed 's/.*"subdomain":"\([^"]*\)".*/\1/'
+    curl -s --max-time 30 "$CENTRAL_API/api/subdomains" 2>/dev/null | grep -o '"subdomain":"[^"]*"' | sed 's/.*"subdomain":"\([^"]*\)".*/\1/'
 }
 
 # Report results
