@@ -129,13 +129,27 @@
 </div>
 
 <script>
+// Global variable to store current time range
+let currentTimeRange = 24;
+let currentSubdomain = '';
+
 async function showTimeSeries(subdomain) {
     const modal = document.getElementById('timeseries-modal');
     const title = document.getElementById('modal-title');
     const chart = document.getElementById('timeseries-chart');
 
+    currentSubdomain = subdomain;
     title.textContent = `Time Series - ${subdomain}`;
-    chart.innerHTML = '<div class="flex items-center justify-center h-full"><div class="text-gray-500">Loading time series data...</div></div>';
+    chart.innerHTML = `
+        <div class="mb-4 flex justify-center space-x-2">
+            <button onclick="changeTimeRange(24)" class="px-3 py-1 text-sm rounded ${currentTimeRange === 24 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}">24h</button>
+            <button onclick="changeTimeRange(1)" class="px-3 py-1 text-sm rounded ${currentTimeRange === 1 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}">1h</button>
+            <button onclick="changeTimeRange(0.083)" class="px-3 py-1 text-sm rounded ${currentTimeRange === 0.083 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}">5m</button>
+        </div>
+        <div class="flex items-center justify-center h-full">
+            <div class="text-gray-500">Loading time series data...</div>
+        </div>
+    `;
     modal.classList.remove('hidden');
 
     try {
@@ -143,12 +157,39 @@ async function showTimeSeries(subdomain) {
         const data = await response.json();
 
         if (data.checks && data.checks.length > 0) {
-            renderTimeSeriesChart(data.checks, subdomain);
+            renderTimeSeriesChart(data.checks, subdomain, currentTimeRange);
         } else {
-            chart.innerHTML = '<div class="flex items-center justify-center h-full"><div class="text-gray-500">No time series data available</div></div>';
+            const chartContainer = document.getElementById('timeseries-chart');
+            chartContainer.innerHTML = `
+                <div class="mb-4 flex justify-center space-x-2">
+                    <button onclick="changeTimeRange(24)" class="px-3 py-1 text-sm rounded ${currentTimeRange === 24 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}">24h</button>
+                    <button onclick="changeTimeRange(1)" class="px-3 py-1 text-sm rounded ${currentTimeRange === 1 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}">1h</button>
+                    <button onclick="changeTimeRange(0.083)" class="px-3 py-1 text-sm rounded ${currentTimeRange === 0.083 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}">5m</button>
+                </div>
+                <div class="flex items-center justify-center h-full">
+                    <div class="text-gray-500">No time series data available</div>
+                </div>
+            `;
         }
     } catch (error) {
-        chart.innerHTML = '<div class="flex items-center justify-center h-full"><div class="text-red-500">Error loading data</div></div>';
+        const chartContainer = document.getElementById('timeseries-chart');
+        chartContainer.innerHTML = `
+            <div class="mb-4 flex justify-center space-x-2">
+                <button onclick="changeTimeRange(24)" class="px-3 py-1 text-sm rounded ${currentTimeRange === 24 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}">24h</button>
+                <button onclick="changeTimeRange(1)" class="px-3 py-1 text-sm rounded ${currentTimeRange === 1 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}">1h</button>
+                <button onclick="changeTimeRange(0.083)" class="px-3 py-1 text-sm rounded ${currentTimeRange === 0.083 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}">5m</button>
+            </div>
+            <div class="flex items-center justify-center h-full">
+                <div class="text-red-500">Error loading data</div>
+            </div>
+        `;
+    }
+}
+
+function changeTimeRange(hours) {
+    currentTimeRange = hours;
+    if (currentSubdomain) {
+        showTimeSeries(currentSubdomain);
     }
 }
 
@@ -157,13 +198,18 @@ function closeTimeSeries() {
     modal.classList.add('hidden');
 }
 
-function renderTimeSeriesChart(checks, subdomain) {
+function renderTimeSeriesChart(checks, subdomain, hours = 24) {
     const chart = document.getElementById('timeseries-chart');
     chart.innerHTML = '';
 
+    // Filter checks by time range
+    const now = new Date();
+    const cutoffTime = new Date(now.getTime() - (hours * 60 * 60 * 1000));
+    const filteredChecks = checks.filter(check => new Date(check.time) >= cutoffTime);
+
     // Group checks by location
     const locationData = {};
-    checks.forEach(check => {
+    filteredChecks.forEach(check => {
         const location = check.location || 'EU';
         if (!locationData[location]) {
             locationData[location] = [];
@@ -188,7 +234,8 @@ function renderTimeSeriesChart(checks, subdomain) {
     });
 
     let html = '<div class="space-y-4">';
-    html += '<div class="text-sm text-gray-600">Response Time Comparison (last 24 hours)</div>';
+    const timeLabel = hours === 24 ? '24 hours' : hours === 1 ? '1 hour' : '5 minutes';
+    html += `<div class="text-sm text-gray-600">Response Time Comparison (last ${timeLabel})</div>`;
 
     // Color mapping for locations
     const locationColors = {
