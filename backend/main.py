@@ -13,7 +13,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from typing import Dict, Any
 import os
 
-from utils.uptime_checker import UptimeChecker
+from uptime_checker import UptimeChecker
 
 app = FastAPI(title="BetterGovPH Open Monitoring API")
 
