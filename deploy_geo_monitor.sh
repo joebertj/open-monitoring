@@ -5,7 +5,7 @@
 set -e
 
 # Configuration
-CENTRAL_API="http://mon.altgovph.site:8002"
+CENTRAL_API="https://mon.altgovph.site:8443"
 
 # Auto-detect location based on IP or hostname
 detect_location() {
@@ -142,6 +142,43 @@ if __name__ == "__main__":
 EOF
 }
 
+# Generate supervisor script to monitor and restart agents
+generate_supervisor_script() {
+    cat << 'EOF'
+#!/bin/bash
+# Geo-Monitoring Agent Supervisor
+# Monitors the geo_monitor.py agent and restarts it if it crashes
+
+AGENT_SCRIPT="geo_monitor.py"
+LOG_FILE="supervisor.log"
+PID_FILE="geo_monitor.pid"
+
+echo "$(date): Starting geo-monitoring supervisor" >> "$LOG_FILE"
+
+while true; do
+    # Check if agent is running
+    if pgrep -f "$AGENT_SCRIPT" > /dev/null; then
+        # Agent is running, check if it's healthy (responding to basic checks)
+        sleep 300  # Check every 5 minutes
+    else
+        echo "$(date): Agent crashed or not running, restarting..." >> "$LOG_FILE"
+
+        # Clean up any zombie processes
+        pkill -f "$AGENT_SCRIPT" || true
+
+        # Start the agent
+        nohup python3 "$AGENT_SCRIPT" > monitor.log 2>&1 &
+        AGENT_PID=$!
+
+        echo "$(date): Started agent with PID $AGENT_PID" >> "$LOG_FILE"
+
+        # Give it a moment to start
+        sleep 10
+    fi
+done
+EOF
+}
+
 # Main deployment function
 deploy_to_server() {
     local server=$1
@@ -153,9 +190,13 @@ deploy_to_server() {
     # Generate and deploy the script
     generate_monitor_script | ssh -i "$key_path" "$server" "cat > geo_monitor.py && chmod +x geo_monitor.py"
 
-    # Start the monitoring agent
+    # Generate and deploy supervisor script
+    generate_supervisor_script | ssh -i "$key_path" "$server" "cat > geo_supervisor.sh && chmod +x geo_supervisor.sh"
+
+    # Start the supervisor (which will manage the monitoring agent)
+    ssh -i "$key_path" "$server" "pkill -f geo_supervisor.sh || true"
     ssh -i "$key_path" "$server" "pkill -f geo_monitor.py || true"
-    ssh -i "$key_path" "$server" "nohup python3 geo_monitor.py > monitor.log 2>&1 &"
+    ssh -i "$key_path" "$server" "nohup ./geo_supervisor.sh > supervisor.log 2>&1 &"
 
     echo "✅ Deployed monitoring agent to $server"
 }
@@ -169,12 +210,14 @@ echo "========================================"
 
 # Deploy to Singapore
 echo "📍 Deploying to Singapore..."
-deploy_to_server "joebert@10.27.79.1" "~/.ssh/klti" "SG"
+deploy_to_server "joebert@10.27.79.1" "$HOME/.ssh/klti" "SG"
 
 # Deploy to Philippines
 echo "🇵🇭 Deploying to Philippines..."
-deploy_to_server "ubnt@192.168.15.12" "~/.ssh/klti" "PH"
+deploy_to_server "ubnt@192.168.15.12" "$HOME/.ssh/klti" "PH"
 
 echo "🎉 Geo-monitoring agents deployed!"
-echo "📊 Check monitor.log on each server for status"
-echo "🛑 To stop: ssh to server and run 'pkill -f geo_monitor.py'"
+echo "📊 Check monitor.log on each server for agent status"
+echo "🔧 Check supervisor.log on each server for supervisor status"
+echo "🛑 To stop: ssh to server and run 'pkill -f geo_supervisor.sh'"
+echo "💓 Agents will auto-restart if they crash"

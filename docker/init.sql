@@ -56,7 +56,8 @@ CREATE TABLE IF NOT EXISTS monitoring.uptime_checks (
     up BOOLEAN NOT NULL,
     platform TEXT,
     error_message TEXT,
-    headers JSONB
+    headers JSONB,
+    location TEXT DEFAULT 'EU'
 );
 
 -- Convert to hypertable for time series
@@ -73,9 +74,18 @@ CREATE TABLE IF NOT EXISTS monitoring.other_dns (
     last_platform_check TIMESTAMPTZ
 );
 
+-- Create agent heartbeats table for monitoring agent health
+CREATE TABLE IF NOT EXISTS monitoring.agent_heartbeats (
+    location TEXT PRIMARY KEY,
+    last_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    status TEXT NOT NULL DEFAULT 'unknown'
+);
+
 -- Create indexes
 CREATE INDEX IF NOT EXISTS idx_uptime_checks_subdomain_time ON monitoring.uptime_checks (subdomain, time DESC);
 CREATE INDEX IF NOT EXISTS idx_uptime_checks_status ON monitoring.uptime_checks (up, time DESC);
+CREATE INDEX IF NOT EXISTS idx_uptime_checks_location ON monitoring.uptime_checks (location, time DESC);
+CREATE INDEX IF NOT EXISTS idx_agent_heartbeats_last_seen ON monitoring.agent_heartbeats (last_seen DESC);
 CREATE INDEX IF NOT EXISTS idx_subdomains_active ON monitoring.subdomains (active, last_seen DESC);
 CREATE INDEX IF NOT EXISTS idx_other_dns_active ON monitoring.other_dns (active, last_seen DESC);
 

@@ -26,7 +26,8 @@ services:
       dockerfile: docker/Dockerfile.backend
     container_name: monitoring-backend
     ports:
-      - "8002:8000"
+      - "8002:8000"   # HTTP fallback
+      - "8443:8443"   # HTTPS
     environment:
       DATABASE_URL: postgresql://monitor:monitor123@db:5432/monitoring
     depends_on:
@@ -34,6 +35,7 @@ services:
         condition: service_healthy
     volumes:
       - ../backend:/app
+      - ../ssl:/app/ssl
     restart: unless-stopped
 
 volumes:

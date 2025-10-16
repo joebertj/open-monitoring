@@ -8,6 +8,7 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
 import os
+import ssl
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from uptime_checker import UptimeChecker
@@ -17,6 +18,15 @@ app = FastAPI(title="Open Monitoring API", version="1.0.0")
 # Mount static files and templates
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+
+# SSL Configuration for HTTPS
+ssl_context = None
+if os.path.exists("ssl/cert.pem") and os.path.exists("ssl/key.pem"):
+    ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+    ssl_context.load_cert_chain("ssl/cert.pem", "ssl/key.pem")
+    print("🔒 HTTPS enabled with SSL certificates")
+else:
+    print("⚠️  SSL certificates not found, running HTTP only")
 
 # CORS middleware for frontend
 app.add_middleware(
@@ -566,6 +576,16 @@ async def receive_geo_report(report: dict):
     try:
         async with pool.acquire() as conn:
             async with conn.transaction():
+                # Update agent heartbeat
+                await conn.execute("""
+                    INSERT INTO monitoring.agent_heartbeats (location, last_seen, status)
+                    VALUES ($1, NOW(), 'active')
+                    ON CONFLICT (location) DO UPDATE SET
+                        last_seen = NOW(),
+                        status = 'active'
+                """, location)
+
+                # Insert monitoring results
                 for result in results:
                     await conn.execute("""
                         INSERT INTO monitoring.uptime_checks
@@ -587,6 +607,38 @@ async def receive_geo_report(report: dict):
     except Exception as e:
         print(f"❌ Error saving geo report: {e}")
         return {"status": "error", "message": str(e)}
+
+@app.get("/api/agent-status")
+async def get_agent_status():
+    """Get status of all geo-monitoring agents"""
+    pool = await get_db_pool()
+    rows = await pool.fetch("""
+        SELECT
+            location,
+            last_seen,
+            status,
+            EXTRACT(EPOCH FROM (NOW() - last_seen)) / 60 as minutes_since_last_seen
+        FROM monitoring.agent_heartbeats
+        ORDER BY last_seen DESC
+    """)
+
+    agents = []
+    for row in rows:
+        status = "online" if row["minutes_since_last_seen"] < 10 else "offline"
+        agents.append({
+            "location": row["location"],
+            "last_seen": row["last_seen"].isoformat(),
+            "status": status,
+            "minutes_since_last_seen": round(row["minutes_since_last_seen"], 1)
+        })
+
+    return {"agents": agents}
+
+@app.post("/api/restart-agent/{location}")
+async def restart_agent(location: str):
+    """Endpoint to trigger agent restart (for future use)"""
+    # This would be used by a management interface to restart agents
+    return {"status": "not_implemented", "location": location, "message": "Agent restart not yet implemented"}
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
