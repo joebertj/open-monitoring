@@ -174,6 +174,14 @@ function renderTimeSeriesChart(checks, subdomain) {
         });
     });
 
+    // Prioritize SG as bars, then EU as lines
+    const locationOrder = ['SG', 'EU', 'PH'];
+    const sortedLocations = Object.keys(locationData).sort((a, b) => {
+        const indexA = locationOrder.indexOf(a);
+        const indexB = locationOrder.indexOf(b);
+        return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
+    });
+
     let html = '<div class="space-y-4">';
     html += '<div class="text-sm text-gray-600">Response Time Comparison (last 24 hours)</div>';
 
@@ -186,7 +194,7 @@ function renderTimeSeriesChart(checks, subdomain) {
 
     // Legend
     html += '<div class="flex flex-wrap gap-6 mb-4">';
-    Object.keys(locationData).forEach((location, index) => {
+    sortedLocations.forEach((location, index) => {
         const color = locationColors[location] || { bg: 'bg-gray-500', line: 'border-gray-500', text: 'text-gray-600' };
         const type = index === 0 ? 'Bars' : 'Lines'; // First location as bars, others as lines
         html += `<div class="flex items-center gap-2">
@@ -211,14 +219,13 @@ function renderTimeSeriesChart(checks, subdomain) {
     const chartHeight = 200; // pixels
 
     // Create SVG for combined chart
-    const locations = Object.keys(locationData);
     const dataPoints = 15; // Show last 15 points
 
     html += '<svg class="w-full h-full" viewBox="0 0 400 250">';
 
-    // Draw bars for first location (EU)
-    if (locations.length > 0) {
-        const primaryLocation = locations[0];
+    // Draw bars for first location (SG)
+    if (sortedLocations.length > 0) {
+        const primaryLocation = sortedLocations[0];
         const primaryData = locationData[primaryLocation];
         const primaryColor = locationColors[primaryLocation];
 
@@ -233,7 +240,7 @@ function renderTimeSeriesChart(checks, subdomain) {
     }
 
     // Draw lines for other locations
-    locations.slice(1).forEach((location, locationIndex) => {
+    sortedLocations.slice(1).forEach((location, locationIndex) => {
         const data = locationData[location];
         const color = locationColors[location];
         // Map location colors to hex values for SVG
