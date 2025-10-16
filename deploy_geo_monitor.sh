@@ -125,17 +125,17 @@ deploy_to_server() {
 
     # Kill any existing processes
     ssh -i "$key_path" "$server" "
-        # Kill existing monitor processes
-        for pid in \$(ps | grep 'geo_monitor.sh' | grep -v grep | awk '{print \$1}' 2>/dev/null || ps | grep 'geo_monitor.sh' | grep -v grep | sed 's/^ *//' | cut -d' ' -f1); do
-            kill -9 \$pid 2>/dev/null || true
-        done
+        # Kill existing monitor processes and their parent shells
+        pkill -f 'geo_monitor.sh' || true
+        pkill -f 'geo.monitor.sh' || true
+        sleep 1
     "
 
     # Generate and deploy the ultra-minimal script
     generate_monitor_script | ssh -i "$key_path" "$server" "cat > geo_monitor.sh && chmod +x geo_monitor.sh"
 
     # Start the agent directly with location override
-    ssh -i "$key_path" "$server" "export LOCATION=\"$location\" && ./geo_monitor.sh > monitor.log 2>&1 &"
+    ssh -i "$key_path" "$server" "LOCATION=\"$location\" ./geo_monitor.sh > monitor.log 2>&1 &"
 
     echo "✅ Deployed ultra-minimal monitoring agent to $server"
 }
