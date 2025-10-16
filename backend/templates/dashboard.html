@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - BetterGovPH Open Monitoring{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header Stats -->
+    <div class="bg-white p-6 rounded-lg shadow">
+      <h2 class="text-2xl font-bold mb-4">BetterGovPH Project Monitoring</h2>
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
+        <div>
+          <div class="text-3xl font-bold text-blue-600">{{ subdomains|length }}</div>
+          <div class="text-sm text-gray-600">Projects Monitored</div>
+        </div>
+        <div>
+          <div class="text-3xl font-bold text-green-600">{{ subdomains|selectattr('up', 'equalto', true)|list|length }}</div>
+          <div class="text-sm text-gray-600">Currently Up</div>
+        </div>
+        <div>
+          <div class="text-3xl font-bold text-gray-600">{{ total_checks }}</div>
+          <div class="text-sm text-gray-600">Total Checks</div>
+        </div>
+        <div>
+          <div class="text-3xl font-bold text-purple-600">{{ other_dns|length }}</div>
+          <div class="text-sm text-gray-600">DNS Discoveries</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Project Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {% for subdomain in subdomains %}
+      <div class="monitoring-card cursor-pointer hover:shadow-lg transition-shadow"
+           onclick="showTimeSeries('{{ subdomain.subdomain }}')">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-semibold text-lg truncate">{{ subdomain.subdomain }}</h3>
+          <span class="px-2 py-1 rounded-full text-xs font-medium
+            {% if subdomain.up %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+            {{ 'UP' if subdomain.up else 'DOWN' }}
+          </span>
+        </div>
+
+        <div class="space-y-2 text-sm">
+          <div class="flex justify-between">
+            <span class="text-gray-600">Platform:</span>
+            <span class="font-medium">{{ subdomain.platform or 'Unknown' }}</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-600">Uptime (24h):</span>
+            <span class="font-medium">{{ "%.1f"|format(subdomain.uptime_percentage) }}%</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-600">Response:</span>
+            <span class="font-medium">
+              {% if subdomain.response_time_ms %}
+                {{ "%.0f"|format(subdomain.response_time_ms) }}ms
+              {% else %}
+                N/A
+              {% endif %}
+            </span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-600">Last Check:</span>
+            <span class="font-medium text-xs">
+              {% if subdomain.last_check %}
+                {{ subdomain.last_check.strftime('%H:%M') }}
+              {% else %}
+                Never
+              {% endif %}
+            </span>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Time Series Modal -->
+    <div id="timeseries-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+      <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-screen overflow-hidden">
+          <div class="p-6 border-b">
+            <div class="flex justify-between items-center">
+              <h3 class="text-xl font-bold" id="modal-title">Time Series</h3>
+              <button onclick="closeTimeSeries()" class="text-gray-400 hover:text-gray-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="p-6">
+            <div id="timeseries-chart" class="w-full h-96">
+              <div class="flex items-center justify-center h-full">
+                <div class="text-gray-500">Loading time series data...</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+</div>
+
+<script>
+async function showTimeSeries(subdomain) {
+    const modal = document.getElementById('timeseries-modal');
+    const title = document.getElementById('modal-title');
+    const chart = document.getElementById('timeseries-chart');
+
+    title.textContent = `Time Series - ${subdomain}`;
+    chart.innerHTML = '<div class="flex items-center justify-center h-full"><div class="text-gray-500">Loading time series data...</div></div>';
+    modal.classList.remove('hidden');
+
+    try {
+        const response = await fetch(`/api/subdomains/${subdomain}/checks`);
+        const data = await response.json();
+
+        if (data.checks && data.checks.length > 0) {
+            renderTimeSeriesChart(data.checks, subdomain);
+        } else {
+            chart.innerHTML = '<div class="flex items-center justify-center h-full"><div class="text-gray-500">No time series data available</div></div>';
+        }
+    } catch (error) {
+        chart.innerHTML = '<div class="flex items-center justify-center h-full"><div class="text-red-500">Error loading data</div></div>';
+    }
+}
+
+function closeTimeSeries() {
+    const modal = document.getElementById('timeseries-modal');
+    modal.classList.add('hidden');
+}
+
+function renderTimeSeriesChart(checks, subdomain) {
+    const chart = document.getElementById('timeseries-chart');
+    chart.innerHTML = '';
+
+    // Simple line chart using response times
+    const times = checks.map(c => new Date(c.time)).reverse();
+    const responseTimes = checks.map(c => c.response_time_ms || 0).reverse();
+
+    let html = '<div class="space-y-4">';
+    html += '<div class="text-sm text-gray-600">Response Time History (last 24 hours)</div>';
+    html += '<div class="h-64 bg-gray-50 rounded p-4">';
+
+    // Simple bar chart
+    const maxTime = Math.max(...responseTimes);
+    const minTime = Math.min(...responseTimes.filter(t => t > 0)) || 0;
+
+    html += '<div class="flex items-end space-x-1 h-full">';
+    responseTimes.slice(-20).forEach((time, index) => {
+        const height = time > 0 ? ((time - minTime) / (maxTime - minTime || 1)) * 100 : 0;
+        const color = time > 1000 ? 'bg-red-400' : time > 500 ? 'bg-yellow-400' : 'bg-green-400';
+        html += `<div class="flex-1 ${color} rounded-t" style="height: ${Math.max(height, 5)}%" title="${time}ms"></div>`;
+    });
+    html += '</div>';
+
+    html += '</div>';
+    html += '<div class="text-xs text-gray-500 text-center">Recent response times (lower is better)</div>';
+    html += '</div>';
+
+    chart.innerHTML = html;
+}
+
+// Close modal when clicking outside
+document.getElementById('timeseries-modal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeTimeSeries();
+    }
+});
+</script>
+{% endblock %}

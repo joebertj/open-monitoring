@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}BetterGovPH Open Monitoring{% endblock %}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+    <!-- Header -->
+    <header class="visualizations-header">
+        <div class="visualizations-container">
+        <div class="visualizations-logo-section">
+            <a href="https://bettergov.ph" class="visualizations-logo-link" target="_blank">
+                <img src="/static/images/bettergov-logo.png" alt="BetterGovPH" class="visualizations-logo-img">
+            </a>
+                <a href="/" class="visualizations-site-name-link">
+                    <span class="visualizations-site-name">Open Monitoring</span>
+                </a>
+            </div>
+        <nav class="visualizations-nav-menu">
+          <a href="/" class="nav-link{% if request.url.path == '/' %} active{% endif %}">Dashboard</a>
+          <a href="/alerts" class="nav-link{% if '/alerts' in request.url.path %} active{% endif %}">Alerts</a>
+        </nav>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="visualizations-main">
+        <div class="visualizations-page-content">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <script>
+        // Auto-refresh every 30 seconds
+        setTimeout(function() {
+            location.reload();
+        }, 30000);
+    </script>
+</body>
+</html>

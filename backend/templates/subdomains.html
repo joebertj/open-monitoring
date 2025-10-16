@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}Subdomains - BetterGovPH Open Monitoring{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <h1 class="text-2xl font-bold">Subdomain Monitoring</h1>
+        <button onclick="runChecks()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+            Run Manual Checks
+        </button>
+    </div>
+
+    <!-- Platform Distribution -->
+    <div class="monitoring-card">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">Platform Distribution</h3>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {% set platforms = {} %}
+            {% for subdomain in subdomains %}
+                {% set platform = subdomain.platform or 'Unknown' %}
+                {% if platform not in platforms %}
+                    {% set _ = platforms.update({platform: 0}) %}
+                {% endif %}
+                {% set _ = platforms.update({platform: platforms[platform] + 1}) %}
+            {% endfor %}
+
+            {% for platform, count in platforms.items() %}
+            <div class="text-center p-4 border rounded-lg">
+                <div class="text-2xl font-bold text-gray-900">{{ count }}</div>
+                <div class="text-sm text-gray-600">{{ platform }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Subdomains Table -->
+    <div class="monitoring-card">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-medium text-gray-900">All Subdomains ({{ subdomains|length }})</h3>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subdomain</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Platform</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Uptime (24h)</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Check</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Response Time</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Checks</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for subdomain in subdomains %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            <a href="https://{{ subdomain.subdomain }}" target="_blank" class="text-blue-600 hover:text-blue-800">
+                                {{ subdomain.subdomain }}
+                            </a>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                                {% if subdomain.active %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                                {{ 'Active' if subdomain.active else 'Inactive' }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {{ subdomain.platform or 'Unknown' }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <span class="px-2 py-1 rounded text-xs font-medium
+                                {% if subdomain.uptime_percentage >= 99 %}bg-green-100 text-green-800
+                                {% elif subdomain.uptime_percentage >= 95 %}bg-yellow-100 text-yellow-800
+                                {% else %}bg-red-100 text-red-800{% endif %}">
+                                {{ "%.1f"|format(subdomain.uptime_percentage) }}%
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {% if subdomain.last_check %}
+                                {{ subdomain.last_check.strftime('%Y-%m-%d %H:%M:%S') if subdomain.last_check else 'Never' }}
+                            {% else %}
+                                Never
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {% if subdomain.response_time_ms %}
+                                {{ "%.0f"|format(subdomain.response_time_ms) }} ms
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {{ subdomain.check_count }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+async function runChecks() {
+    try {
+        const response = await fetch('/api/checks/run', { method: 'POST' });
+        if (response.ok) {
+            alert('Checks started! Page will refresh automatically.');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            alert('Failed to start checks');
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+</script>
+{% endblock %}
