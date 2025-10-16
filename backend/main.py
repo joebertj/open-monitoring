@@ -554,6 +554,40 @@ async def get_subdomain_checks(subdomain: str, hours: int = 24):
 
     return {"subdomain": subdomain, "checks": checks}
 
+@app.post("/api/geo-report")
+async def receive_geo_report(report: dict):
+    """Receive monitoring reports from geo-distributed agents"""
+    pool = await get_db_pool()
+    results = report.get("results", [])
+    location = report.get("location", "unknown")
+
+    print(f"📥 Received {len(results)} geo-reports from {location}")
+
+    try:
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                for result in results:
+                    await conn.execute("""
+                        INSERT INTO monitoring.uptime_checks
+                        (time, subdomain, status_code, response_time_ms, up, platform, error_message, location)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                    """,
+                    datetime.fromisoformat(result["timestamp"].replace('Z', '+00:00')),
+                    result["subdomain"],
+                    result["status_code"],
+                    result["response_time_ms"],
+                    result["up"],
+                    None,  # platform detection not implemented for geo agents yet
+                    result.get("error"),
+                    location
+                    )
+
+        return {"status": "success", "received": len(results)}
+
+    except Exception as e:
+        print(f"❌ Error saving geo report: {e}")
+        return {"status": "error", "message": str(e)}
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for real-time updates"""

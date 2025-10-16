@@ -78,16 +78,20 @@ async def scrape_bettergov_projects():
                 projects.add(mention)
                 print(f"📝 Found subdomain mention: {mention}")
 
-        # Confirm known projects exist
-        known_projects = ['visualizations.bettergov.ph', 'budget.bettergov.ph']
-        for project in known_projects:
-            try:
-                test_response = requests.head(f"https://{project}", timeout=5)
-                if test_response.status_code == 200:
-                    projects.add(project)
-                    print(f"✅ Confirmed {project} exists")
-            except:
-                print(f"⚠️ Could not confirm {project}")
+            # Confirm all found projects actually exist and are reachable
+            confirmed_projects = set()
+            for project in projects.copy():
+                try:
+                    test_response = requests.head(f"https://{project}", timeout=5)
+                    if test_response.status_code == 200:
+                        confirmed_projects.add(project)
+                        print(f"✅ Confirmed {project} exists")
+                    else:
+                        print(f"⚠️ {project} returned status {test_response.status_code}")
+                except Exception as e:
+                    print(f"⚠️ {project} is not reachable: {e}")
+
+            projects = confirmed_projects
 
         # Remove common non-project subdomains
         exclude = {'www.bettergov.ph', 'api.bettergov.ph', 'mail.bettergov.ph', 'ftp.bettergov.ph', 'smtp.bettergov.ph'}
