@@ -666,42 +666,28 @@ async def receive_geo_report(report: dict):
 @app.get("/api/dns-discoveries")
 async def get_dns_discoveries():
     """Get all DNS discoveries (inactive subdomains and other DNS)"""
-    print("API: DNS discoveries endpoint called")
+    print("DNS_DISCOVERIES: Endpoint called")
     try:
-        print("API: Getting inactive subdomains")
+        print("DNS_DISCOVERIES: Testing database connection")
+        pool = await get_db_pool()
+        test_result = await pool.fetchval("SELECT 1")
+        print(f"DNS_DISCOVERIES: DB test result: {test_result}")
+
+        print("DNS_DISCOVERIES: Getting inactive subdomains")
         inactive_subdomains = await get_inactive_subdomains()
-        print(f"API: Got {len(inactive_subdomains)} inactive subdomains")
+        print(f"DNS_DISCOVERIES: Got {len(inactive_subdomains)} inactive subdomains")
 
-        print("API: Getting other DNS")
+        print("DNS_DISCOVERIES: Getting other DNS")
         other_dns = await get_other_dns()
-        print(f"API: Got {len(other_dns)} other DNS")
-
-        # Debug: print first inactive subdomain if any
-        if inactive_subdomains:
-            print(f"API: First inactive: {inactive_subdomains[0]}")
+        print(f"DNS_DISCOVERIES: Got {len(other_dns)} other DNS")
 
         # Combine both lists
         discoveries = inactive_subdomains + other_dns
-        print(f"API: Total discoveries: {len(discoveries)}")
+        print(f"DNS_DISCOVERIES: Total combined: {len(discoveries)}")
 
-        # Format for API response
-        formatted_discoveries = []
-        for discovery in discoveries:
-            try:
-                formatted_discoveries.append({
-                    "subdomain": discovery["subdomain"],
-                    "discovered_at": discovery["discovered_at"].isoformat() if discovery.get("discovered_at") else None,
-                    "last_seen": discovery["last_seen"].isoformat() if discovery.get("last_seen") else None,
-                    "active": discovery.get("active", False),
-                    "discovery_method": discovery.get("discovery_method", "Unknown")
-                })
-            except Exception as e:
-                print(f"API: Error formatting discovery {discovery}: {e}")
-
-        print(f"API: Returning {len(formatted_discoveries)} formatted discoveries")
-        return {"discoveries": formatted_discoveries}
+        return {"discoveries": discoveries, "count": len(discoveries)}
     except Exception as e:
-        print(f"API: Error in get_dns_discoveries: {e}")
+        print(f"DNS_DISCOVERIES: Error: {e}")
         import traceback
         traceback.print_exc()
         return {"discoveries": [], "error": str(e)}
