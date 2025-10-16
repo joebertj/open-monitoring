@@ -134,6 +134,7 @@ let currentTimeRange = 24;
 let currentSubdomain = '';
 
 async function showTimeSeries(subdomain) {
+    console.log('showTimeSeries called for:', subdomain, 'currentTimeRange:', currentTimeRange);
     const modal = document.getElementById('timeseries-modal');
     const title = document.getElementById('modal-title');
     const chart = document.getElementById('timeseries-chart');
@@ -187,8 +188,11 @@ async function showTimeSeries(subdomain) {
 }
 
 function changeTimeRange(hours) {
+    console.log('changeTimeRange called with hours:', hours);
     currentTimeRange = hours;
+    console.log('currentTimeRange set to:', currentTimeRange);
     if (currentSubdomain) {
+        console.log('Calling showTimeSeries for:', currentSubdomain);
         showTimeSeries(currentSubdomain);
     }
 }
@@ -199,6 +203,7 @@ function closeTimeSeries() {
 }
 
 function renderTimeSeriesChart(checks, subdomain, hours = 24) {
+    console.log('renderTimeSeriesChart called with hours:', hours, 'for subdomain:', subdomain);
     const chart = document.getElementById('timeseries-chart');
     chart.innerHTML = '';
 
