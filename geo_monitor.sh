@@ -19,18 +19,17 @@ check_subdomain() {
     http_code=$(echo "$response" | cut -d'|' -f1)
     response_time=$(echo "$response" | cut -d'|' -f2 | awk '{printf "%.0f", $1 * 1000}' 2>/dev/null || echo "0")
 
-    if [ "$http_code" = "000" ] || [ -z "$http_code" ]; then
-        response=$(curl -s -w "%{http_code}|%{time_total}" --max-time 10 "http://$subdomain/" 2>/dev/null)
-        http_code=$(echo "$response" | cut -d'|' -f1)
-        response_time=$(echo "$response" | cut -d'|' -f2 | awk '{printf "%.0f", $1 * 1000}' 2>/dev/null || echo "0")
+    if [ "$http_code" = "000" ]; then
+        http_code="null"
     fi
 
-    up="false"
     if [ "$http_code" -ge 200 ] 2>/dev/null && [ "$http_code" -lt 400 ] 2>/dev/null; then
         up="true"
+    else
+        up="false"
     fi
 
-    echo "{\"subdomain\":\"$subdomain\",\"status_code\":${http_code:-null},\"response_time_ms\":${response_time:-0},\"up\":$up,\"location\":\"$LOCATION\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\"}"
+    echo "{\"subdomain\":\"$subdomain\",\"status_code\":$http_code,\"response_time_ms\":${response_time:-0},\"up\":$up,\"location\":\"$LOCATION\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\"}"
 }
 
 # Get subdomains from API (BusyBox compatible)
