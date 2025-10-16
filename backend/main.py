@@ -12,8 +12,13 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from typing import Dict, Any
 import os
+import logging
 
 from uptime_checker import UptimeChecker
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="BetterGovPH Open Monitoring API")
 
@@ -666,28 +671,28 @@ async def receive_geo_report(report: dict):
 @app.get("/api/dns-discoveries")
 async def get_dns_discoveries():
     """Get all DNS discoveries (inactive subdomains and other DNS)"""
-    print("DNS_DISCOVERIES: Endpoint called")
+    logger.info("DNS_DISCOVERIES: Endpoint called")
     try:
-        print("DNS_DISCOVERIES: Testing database connection")
+        logger.info("DNS_DISCOVERIES: Testing database connection")
         pool = await get_db_pool()
         test_result = await pool.fetchval("SELECT 1")
-        print(f"DNS_DISCOVERIES: DB test result: {test_result}")
+        logger.info(f"DNS_DISCOVERIES: DB test result: {test_result}")
 
-        print("DNS_DISCOVERIES: Getting inactive subdomains")
+        logger.info("DNS_DISCOVERIES: Getting inactive subdomains")
         inactive_subdomains = await get_inactive_subdomains()
-        print(f"DNS_DISCOVERIES: Got {len(inactive_subdomains)} inactive subdomains")
+        logger.info(f"DNS_DISCOVERIES: Got {len(inactive_subdomains)} inactive subdomains")
 
-        print("DNS_DISCOVERIES: Getting other DNS")
+        logger.info("DNS_DISCOVERIES: Getting other DNS")
         other_dns = await get_other_dns()
-        print(f"DNS_DISCOVERIES: Got {len(other_dns)} other DNS")
+        logger.info(f"DNS_DISCOVERIES: Got {len(other_dns)} other DNS")
 
         # Combine both lists
         discoveries = inactive_subdomains + other_dns
-        print(f"DNS_DISCOVERIES: Total combined: {len(discoveries)}")
+        logger.info(f"DNS_DISCOVERIES: Total combined: {len(discoveries)}")
 
         return {"discoveries": discoveries, "count": len(discoveries)}
     except Exception as e:
-        print(f"DNS_DISCOVERIES: Error: {e}")
+        logger.error(f"DNS_DISCOVERIES: Error: {e}")
         import traceback
         traceback.print_exc()
         return {"discoveries": [], "error": str(e)}
