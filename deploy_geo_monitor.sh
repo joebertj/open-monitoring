@@ -5,7 +5,7 @@
 set -e
 
 # Configuration - HTTPS by default, fallback to HTTP
-CENTRAL_API="https://mon.altgovph.site:8443"
+CENTRAL_API="http://10.27.79.2:8002"
 
 # Auto-detect location based on IP or hostname
 detect_location() {
@@ -77,7 +77,7 @@ check_subdomain() {
 get_subdomains() {
     response=$(curl -s --max-time 30 "$CENTRAL_API/api/subdomains" 2>/dev/null)
     if [ -z "$response" ]; then
-        response=$(curl -s --max-time 30 "http://mon.altgovph.site:8002/api/subdomains" 2>/dev/null)
+        response=$(curl -s --max-time 30 "http://10.27.79.4:8002/api/subdomains" 2>/dev/null)
     fi
     echo "$response" | grep -o '"subdomain":"[^"]*"' | cut -d'"' -f4
 }
@@ -88,9 +88,9 @@ report_results() {
     payload="{\"results\":[$results],\"location\":\"$LOCATION\"}"
 
     response=$(curl -s -X POST -H "Content-Type: application/json" -d "$payload" --max-time 30 "$CENTRAL_API/api/geo-report" 2>/dev/null)
-    if [ -z "$response" ]; then
-        curl -s -X POST -H "Content-Type: application/json" -d "$payload" --max-time 30 "http://mon.altgovph.site:8002/api/geo-report" >/dev/null 2>&1
-    fi
+        if [ -z "$response" ]; then
+            curl -s -X POST -H "Content-Type: application/json" -d "$payload" --max-time 30 "http://10.27.79.4:8002/api/geo-report" >/dev/null 2>&1
+        fi
 }
 
 # Main loop
@@ -135,7 +135,7 @@ deploy_to_server() {
     generate_monitor_script | ssh -i "$key_path" "$server" "cat > geo_monitor.sh && chmod +x geo_monitor.sh"
 
     # Start the agent directly with location override
-    ssh -i "$key_path" "$server" "LOCATION=\"$location\" ./geo_monitor.sh > monitor.log 2>&1 &"
+    ssh -i "$key_path" "$server" "export LOCATION=\"$location\" && ./geo_monitor.sh > monitor.log 2>&1 &"
 
     echo "✅ Deployed ultra-minimal monitoring agent to $server"
 }
