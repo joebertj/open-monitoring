@@ -666,40 +666,50 @@ async def receive_geo_report(report: dict):
 @app.get("/api/dns-discoveries")
 async def get_dns_discoveries():
     """Get all DNS discoveries (inactive subdomains and other DNS)"""
-    print("API: Getting DNS discoveries")
-    inactive_subdomains = await get_inactive_subdomains()
-    other_dns = await get_other_dns()
+    try:
+        print("API: Getting DNS discoveries")
+        inactive_subdomains = await get_inactive_subdomains()
+        other_dns = await get_other_dns()
 
-    print(f"API: Found {len(inactive_subdomains)} inactive subdomains, {len(other_dns)} other DNS")
+        print(f"API: Found {len(inactive_subdomains)} inactive subdomains, {len(other_dns)} other DNS")
 
-    # Combine both lists
-    discoveries = inactive_subdomains + other_dns
+        # Debug: print first inactive subdomain if any
+        if inactive_subdomains:
+            print(f"API: First inactive: {inactive_subdomains[0]}")
 
-    # Sort by last_seen descending (handle datetime objects)
-    def get_sort_key(x):
-        last_seen = x.get('last_seen')
-        if last_seen is None:
-            return 0
-        elif isinstance(last_seen, datetime):
-            return last_seen.timestamp()
-        else:
-            return 0
+        # Combine both lists
+        discoveries = inactive_subdomains + other_dns
 
-    discoveries.sort(key=get_sort_key, reverse=True)
+        # Sort by last_seen descending (handle datetime objects)
+        def get_sort_key(x):
+            last_seen = x.get('last_seen')
+            if last_seen is None:
+                return 0
+            elif isinstance(last_seen, datetime):
+                return last_seen.timestamp()
+            else:
+                return 0
 
-    # Format for API response
-    formatted_discoveries = []
-    for discovery in discoveries:
-        formatted_discoveries.append({
-            "subdomain": discovery["subdomain"],
-            "discovered_at": discovery["discovered_at"].isoformat() if discovery.get("discovered_at") else None,
-            "last_seen": discovery["last_seen"].isoformat() if discovery.get("last_seen") else None,
-            "active": discovery.get("active", False),
-            "discovery_method": discovery.get("discovery_method", "Unknown")
-        })
+        discoveries.sort(key=get_sort_key, reverse=True)
 
-    print(f"API: Returning {len(formatted_discoveries)} discoveries")
-    return {"discoveries": formatted_discoveries}
+        # Format for API response
+        formatted_discoveries = []
+        for discovery in discoveries:
+            formatted_discoveries.append({
+                "subdomain": discovery["subdomain"],
+                "discovered_at": discovery["discovered_at"].isoformat() if discovery.get("discovered_at") else None,
+                "last_seen": discovery["last_seen"].isoformat() if discovery.get("last_seen") else None,
+                "active": discovery.get("active", False),
+                "discovery_method": discovery.get("discovery_method", "Unknown")
+            })
+
+        print(f"API: Returning {len(formatted_discoveries)} discoveries")
+        return {"discoveries": formatted_discoveries}
+    except Exception as e:
+        print(f"API: Error in get_dns_discoveries: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"discoveries": [], "error": str(e)}
 
 @app.get("/api/agent-status")
 async def get_agent_status():
