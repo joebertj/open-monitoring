@@ -671,30 +671,16 @@ async def receive_geo_report(report: dict):
 @app.get("/api/dns-discoveries")
 async def get_dns_discoveries():
     """Get all DNS discoveries (inactive subdomains and other DNS)"""
-    logger.info("DNS_DISCOVERIES: Endpoint called")
     try:
-        logger.info("DNS_DISCOVERIES: Testing database connection")
-        pool = await get_db_pool()
-        test_result = await pool.fetchval("SELECT 1")
-        logger.info(f"DNS_DISCOVERIES: DB test result: {test_result}")
-
-        logger.info("DNS_DISCOVERIES: Getting inactive subdomains")
         inactive_subdomains = await get_inactive_subdomains()
-        logger.info(f"DNS_DISCOVERIES: Got {len(inactive_subdomains)} inactive subdomains")
-
-        logger.info("DNS_DISCOVERIES: Getting other DNS")
         other_dns = await get_other_dns()
-        logger.info(f"DNS_DISCOVERIES: Got {len(other_dns)} other DNS")
 
         # Combine both lists
         discoveries = inactive_subdomains + other_dns
-        logger.info(f"DNS_DISCOVERIES: Total combined: {len(discoveries)}")
 
         return {"discoveries": discoveries, "count": len(discoveries)}
     except Exception as e:
-        logger.error(f"DNS_DISCOVERIES: Error: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"DNS discoveries error: {e}")
         return {"discoveries": [], "error": str(e)}
 
 @app.get("/api/agent-status")
