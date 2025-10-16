@@ -80,12 +80,12 @@ CREATE INDEX IF NOT EXISTS idx_agent_heartbeats_last_seen ON monitoring.agent_he
 CREATE INDEX IF NOT EXISTS idx_subdomains_active ON monitoring.subdomains (active, last_seen DESC);
 CREATE INDEX IF NOT EXISTS idx_subdomains_discovery_method ON monitoring.subdomains (discovery_method, active, last_seen DESC);
 
--- Set discovery_method for core projects
-UPDATE monitoring.subdomains SET discovery_method = 'Project Discovery' WHERE subdomain IN ('bettergov.ph', 'visualizations.bettergov.ph', 'budget.bettergov.ph', 'docs.bettergov.ph', 'govchain.bettergov.ph', 'hotlines.bettergov.ph', 'open-congress-api.bettergov.ph', 'saln.bettergov.ph', 'taxdirectory.bettergov.ph', 'api.bettergov.ph');
+-- Set all existing subdomains to DNS Enumeration and inactive by default
+UPDATE monitoring.subdomains SET discovery_method = 'DNS Enumeration', active = false;
 
--- Mark any existing non-core subdomains as DNS Enumeration discoveries
-UPDATE monitoring.subdomains SET discovery_method = 'DNS Enumeration', active = false
-WHERE discovery_method = 'DNS Enumeration' AND subdomain NOT IN ('bettergov.ph', 'visualizations.bettergov.ph', 'budget.bettergov.ph', 'docs.bettergov.ph', 'govchain.bettergov.ph', 'hotlines.bettergov.ph', 'open-congress-api.bettergov.ph', 'saln.bettergov.ph', 'taxdirectory.bettergov.ph', 'api.bettergov.ph');
+-- Override core projects to Project Discovery and active
+UPDATE monitoring.subdomains SET discovery_method = 'Project Discovery', active = true
+WHERE subdomain IN ('bettergov.ph', 'visualizations.bettergov.ph', 'budget.bettergov.ph', 'docs.bettergov.ph', 'govchain.bettergov.ph', 'hotlines.bettergov.ph', 'open-congress-api.bettergov.ph', 'saln.bettergov.ph', 'taxdirectory.bettergov.ph', 'api.bettergov.ph');
 
 -- Insert core projects if they don't exist
 INSERT INTO monitoring.subdomains (domain, subdomain, discovered_at, active, discovery_method) VALUES ('bettergov.ph', 'bettergov.ph', NOW(), true, 'Project Discovery') ON CONFLICT (subdomain) DO NOTHING;
