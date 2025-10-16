@@ -672,8 +672,17 @@ async def get_dns_discoveries():
     # Combine both lists
     discoveries = inactive_subdomains + other_dns
 
-    # Sort by last_seen descending
-    discoveries.sort(key=lambda x: x.get('last_seen', '1970-01-01'), reverse=True)
+    # Sort by last_seen descending (handle datetime objects)
+    def get_sort_key(x):
+        last_seen = x.get('last_seen')
+        if last_seen is None:
+            return 0
+        elif isinstance(last_seen, datetime):
+            return last_seen.timestamp()
+        else:
+            return 0
+
+    discoveries.sort(key=get_sort_key, reverse=True)
 
     # Format for API response
     formatted_discoveries = []
