@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS monitoring.subdomains (
     discovered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     last_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     active BOOLEAN DEFAULT TRUE,
+    discovery_method TEXT NOT NULL DEFAULT 'DNS Enumeration',
     platform TEXT,
     last_platform_check TIMESTAMPTZ
 );
@@ -63,16 +64,6 @@ CREATE TABLE IF NOT EXISTS monitoring.uptime_checks (
 -- Convert to hypertable for time series
 SELECT create_hypertable('monitoring.uptime_checks', 'time', chunk_time_interval => INTERVAL '1 day');
 
--- Create other_dns table for non-project subdomains
-CREATE TABLE IF NOT EXISTS monitoring.other_dns (
-    id SERIAL PRIMARY KEY,
-    subdomain TEXT NOT NULL UNIQUE,
-    discovered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    last_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    active BOOLEAN DEFAULT TRUE,
-    platform TEXT,
-    last_platform_check TIMESTAMPTZ
-);
 
 -- Create agent heartbeats table for monitoring agent health
 CREATE TABLE IF NOT EXISTS monitoring.agent_heartbeats (
@@ -87,30 +78,26 @@ CREATE INDEX IF NOT EXISTS idx_uptime_checks_status ON monitoring.uptime_checks 
 CREATE INDEX IF NOT EXISTS idx_uptime_checks_location ON monitoring.uptime_checks (location, time DESC);
 CREATE INDEX IF NOT EXISTS idx_agent_heartbeats_last_seen ON monitoring.agent_heartbeats (last_seen DESC);
 CREATE INDEX IF NOT EXISTS idx_subdomains_active ON monitoring.subdomains (active, last_seen DESC);
-CREATE INDEX IF NOT EXISTS idx_other_dns_active ON monitoring.other_dns (active, last_seen DESC);
+CREATE INDEX IF NOT EXISTS idx_subdomains_discovery_method ON monitoring.subdomains (discovery_method, active, last_seen DESC);
 
--- Move DNS-discovered subdomains to other_dns table (keep only legitimate projects in subdomains)
--- Only keep visualizations.bettergov.ph as it's the known project
-INSERT INTO monitoring.other_dns (subdomain, discovered_at, last_seen, active, platform, last_platform_check)
-SELECT subdomain, discovered_at, last_seen, active, platform, last_platform_check
-FROM monitoring.subdomains
-WHERE subdomain NOT IN ('bettergov.ph', 'visualizations.bettergov.ph', 'budget.bettergov.ph', 'docs.bettergov.ph', 'govchain.bettergov.ph', 'hotlines.bettergov.ph', 'open-congress-api.bettergov.ph', 'saln.bettergov.ph', 'taxdirectory.bettergov.ph', 'api.bettergov.ph');
+-- Set discovery_method for core projects
+UPDATE monitoring.subdomains SET discovery_method = 'Project Discovery' WHERE subdomain IN ('bettergov.ph', 'visualizations.bettergov.ph', 'budget.bettergov.ph', 'docs.bettergov.ph', 'govchain.bettergov.ph', 'hotlines.bettergov.ph', 'open-congress-api.bettergov.ph', 'saln.bettergov.ph', 'taxdirectory.bettergov.ph', 'api.bettergov.ph');
 
--- Remove moved subdomains from main subdomains table
-DELETE FROM monitoring.subdomains
-WHERE subdomain NOT IN ('bettergov.ph', 'visualizations.bettergov.ph', 'budget.bettergov.ph', 'docs.bettergov.ph', 'govchain.bettergov.ph', 'hotlines.bettergov.ph', 'open-congress-api.bettergov.ph', 'saln.bettergov.ph', 'taxdirectory.bettergov.ph', 'api.bettergov.ph');
+-- Mark any existing non-core subdomains as DNS Enumeration discoveries
+UPDATE monitoring.subdomains SET discovery_method = 'DNS Enumeration', active = false
+WHERE discovery_method = 'DNS Enumeration' AND subdomain NOT IN ('bettergov.ph', 'visualizations.bettergov.ph', 'budget.bettergov.ph', 'docs.bettergov.ph', 'govchain.bettergov.ph', 'hotlines.bettergov.ph', 'open-congress-api.bettergov.ph', 'saln.bettergov.ph', 'taxdirectory.bettergov.ph', 'api.bettergov.ph');
 
 -- Insert core projects if they don't exist
-INSERT INTO monitoring.subdomains (domain, subdomain, discovered_at, active) VALUES ('bettergov.ph', 'bettergov.ph', NOW(), true) ON CONFLICT (subdomain) DO NOTHING;
-INSERT INTO monitoring.subdomains (domain, subdomain, discovered_at, active) VALUES ('bettergov.ph', 'visualizations.bettergov.ph', NOW(), true) ON CONFLICT (subdomain) DO NOTHING;
-INSERT INTO monitoring.subdomains (domain, subdomain, discovered_at, active) VALUES ('bettergov.ph', 'budget.bettergov.ph', NOW(), true) ON CONFLICT (subdomain) DO NOTHING;
-INSERT INTO monitoring.subdomains (domain, subdomain, discovered_at, active) VALUES ('bettergov.ph', 'docs.bettergov.ph', NOW(), true) ON CONFLICT (subdomain) DO NOTHING;
-INSERT INTO monitoring.subdomains (domain, subdomain, discovered_at, active) VALUES ('bettergov.ph', 'govchain.bettergov.ph', NOW(), true) ON CONFLICT (subdomain) DO NOTHING;
-INSERT INTO monitoring.subdomains (domain, subdomain, discovered_at, active) VALUES ('bettergov.ph', 'hotlines.bettergov.ph', NOW(), true) ON CONFLICT (subdomain) DO NOTHING;
-INSERT INTO monitoring.subdomains (domain, subdomain, discovered_at, active) VALUES ('bettergov.ph', 'open-congress-api.bettergov.ph', NOW(), true) ON CONFLICT (subdomain) DO NOTHING;
-INSERT INTO monitoring.subdomains (domain, subdomain, discovered_at, active) VALUES ('bettergov.ph', 'saln.bettergov.ph', NOW(), true) ON CONFLICT (subdomain) DO NOTHING;
-INSERT INTO monitoring.subdomains (domain, subdomain, discovered_at, active) VALUES ('bettergov.ph', 'taxdirectory.bettergov.ph', NOW(), true) ON CONFLICT (subdomain) DO NOTHING;
-INSERT INTO monitoring.subdomains (domain, subdomain, discovered_at, active) VALUES ('bettergov.ph', 'api.bettergov.ph', NOW(), true) ON CONFLICT (subdomain) DO NOTHING;
+INSERT INTO monitoring.subdomains (domain, subdomain, discovered_at, active, discovery_method) VALUES ('bettergov.ph', 'bettergov.ph', NOW(), true, 'Project Discovery') ON CONFLICT (subdomain) DO NOTHING;
+INSERT INTO monitoring.subdomains (domain, subdomain, discovered_at, active, discovery_method) VALUES ('bettergov.ph', 'visualizations.bettergov.ph', NOW(), true, 'Project Discovery') ON CONFLICT (subdomain) DO NOTHING;
+INSERT INTO monitoring.subdomains (domain, subdomain, discovered_at, active, discovery_method) VALUES ('bettergov.ph', 'budget.bettergov.ph', NOW(), true, 'Project Discovery') ON CONFLICT (subdomain) DO NOTHING;
+INSERT INTO monitoring.subdomains (domain, subdomain, discovered_at, active, discovery_method) VALUES ('bettergov.ph', 'docs.bettergov.ph', NOW(), true, 'Project Discovery') ON CONFLICT (subdomain) DO NOTHING;
+INSERT INTO monitoring.subdomains (domain, subdomain, discovered_at, active, discovery_method) VALUES ('bettergov.ph', 'govchain.bettergov.ph', NOW(), true, 'Project Discovery') ON CONFLICT (subdomain) DO NOTHING;
+INSERT INTO monitoring.subdomains (domain, subdomain, discovered_at, active, discovery_method) VALUES ('bettergov.ph', 'hotlines.bettergov.ph', NOW(), true, 'Project Discovery') ON CONFLICT (subdomain) DO NOTHING;
+INSERT INTO monitoring.subdomains (domain, subdomain, discovered_at, active, discovery_method) VALUES ('bettergov.ph', 'open-congress-api.bettergov.ph', NOW(), true, 'Project Discovery') ON CONFLICT (subdomain) DO NOTHING;
+INSERT INTO monitoring.subdomains (domain, subdomain, discovered_at, active, discovery_method) VALUES ('bettergov.ph', 'saln.bettergov.ph', NOW(), true, 'Project Discovery') ON CONFLICT (subdomain) DO NOTHING;
+INSERT INTO monitoring.subdomains (domain, subdomain, discovered_at, active, discovery_method) VALUES ('bettergov.ph', 'taxdirectory.bettergov.ph', NOW(), true, 'Project Discovery') ON CONFLICT (subdomain) DO NOTHING;
+INSERT INTO monitoring.subdomains (domain, subdomain, discovered_at, active, discovery_method) VALUES ('bettergov.ph', 'api.bettergov.ph', NOW(), true, 'Project Discovery') ON CONFLICT (subdomain) DO NOTHING;
 
 -- Create continuous aggregates for hourly stats
 CREATE MATERIALIZED VIEW monitoring.hourly_metrics
