@@ -147,7 +147,7 @@ async def get_subdomains_with_stats():
     return [dict(row) for row in rows]
 
 async def get_inactive_subdomains():
-    """Get inactive/down subdomains from the main monitoring table"""
+    """Get inactive/down subdomains from the unified monitoring table"""
     pool = await get_db_pool()
     rows = await pool.fetch("""
         SELECT
@@ -157,8 +157,8 @@ async def get_inactive_subdomains():
             s.last_platform_check,
             s.discovered_at,
             s.last_seen,
-            COALESCE(latest_check.up, false) as is_up,
-            'Project Discovery' as discovery_method
+            s.discovery_method,
+            COALESCE(latest_check.up, false) as is_up
         FROM monitoring.subdomains s
         LEFT JOIN LATERAL (
             SELECT up
@@ -174,7 +174,7 @@ async def get_inactive_subdomains():
     return [dict(row) for row in rows]
 
 async def get_other_dns():
-    """Get other DNS discoveries (non-project subdomains)"""
+    """Get other DNS discoveries from the unified subdomains table"""
     pool = await get_db_pool()
     rows = await pool.fetch("""
         SELECT
@@ -184,8 +184,9 @@ async def get_other_dns():
             last_platform_check,
             discovered_at,
             last_seen,
-            'DNS Enumeration' as discovery_method
-        FROM monitoring.other_dns
+            discovery_method
+        FROM monitoring.subdomains
+        WHERE discovery_method = 'DNS Enumeration'
         ORDER BY last_seen DESC
         LIMIT 20
     """)

@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS monitoring.subdomains (
     discovered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     last_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     active BOOLEAN DEFAULT TRUE,
+    discovery_method TEXT NOT NULL DEFAULT 'DNS Enumeration',
     platform TEXT,
     last_platform_check TIMESTAMPTZ
 );
@@ -79,23 +80,39 @@ CREATE INDEX IF NOT EXISTS idx_uptime_checks_subdomain_time ON monitoring.uptime
 CREATE INDEX IF NOT EXISTS idx_uptime_checks_status ON monitoring.uptime_checks (up, time DESC);
 CREATE INDEX IF NOT EXISTS idx_uptime_checks_location ON monitoring.uptime_checks (location, time DESC);
 CREATE INDEX IF NOT EXISTS idx_subdomains_active ON monitoring.subdomains (active, last_seen DESC);
-CREATE INDEX IF NOT EXISTS idx_other_dns_active ON monitoring.other_dns (active, last_seen DESC);
+CREATE INDEX IF NOT EXISTS idx_subdomains_discovery_method ON monitoring.subdomains (discovery_method, active, last_seen DESC);
 
--- Move DNS-discovered subdomains to other_dns table (keep only legitimate projects in subdomains)
--- Only keep visualizations.bettergov.ph as it's the known project
-INSERT INTO monitoring.other_dns (subdomain, discovered_at, last_seen, active, platform, last_platform_check)
-SELECT subdomain, discovered_at, last_seen, active, platform, last_platform_check
-FROM monitoring.subdomains
-WHERE subdomain NOT IN ('visualizations.bettergov.ph', 'bettergov.ph');
+-- Migrate existing subdomains to have proper discovery methods
+UPDATE monitoring.subdomains SET discovery_method = 'Project Discovery' WHERE subdomain IN ('visualizations.bettergov.ph', 'bettergov.ph');
 
--- Remove moved subdomains from main subdomains table
-DELETE FROM monitoring.subdomains
-WHERE subdomain NOT IN ('visualizations.bettergov.ph', 'bettergov.ph');
+-- Migrate data from other_dns table to subdomains table
+INSERT INTO monitoring.subdomains (domain, subdomain, discovered_at, last_seen, active, discovery_method, platform, last_platform_check)
+SELECT
+    CASE
+        WHEN POSITION('.' IN subdomain) > 0 THEN SUBSTRING(subdomain FROM POSITION('.' IN subdomain) + 1)
+        ELSE subdomain
+    END as domain,
+    subdomain,
+    discovered_at,
+    last_seen,
+    false as active,  -- other_dns entries are inactive
+    'DNS Enumeration' as discovery_method,
+    platform,
+    last_platform_check
+FROM monitoring.other_dns
+ON CONFLICT (subdomain) DO NOTHING;
+
+-- Set discovery_method for any remaining entries that don't have legitimate projects
+UPDATE monitoring.subdomains SET discovery_method = 'DNS Enumeration', active = false
+WHERE discovery_method = 'DNS Enumeration' AND subdomain NOT IN ('visualizations.bettergov.ph', 'bettergov.ph');
 
 -- Insert visualizations.bettergov.ph if it doesn't exist
-INSERT INTO monitoring.subdomains (domain, subdomain, discovered_at, active)
-VALUES ('bettergov.ph', 'visualizations.bettergov.ph', NOW(), true)
+INSERT INTO monitoring.subdomains (domain, subdomain, discovered_at, active, discovery_method)
+VALUES ('bettergov.ph', 'visualizations.bettergov.ph', NOW(), true, 'Project Discovery')
 ON CONFLICT (subdomain) DO NOTHING;
+
+-- Drop the old other_dns table since we've migrated everything to subdomains
+DROP TABLE IF EXISTS monitoring.other_dns;
 
 -- Create continuous aggregates for hourly stats
 CREATE MATERIALIZED VIEW monitoring.hourly_metrics

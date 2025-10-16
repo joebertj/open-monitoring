@@ -19,9 +19,9 @@
           <div class="text-3xl font-bold text-gray-600">{{ total_agents }}</div>
           <div class="text-sm text-gray-600">Total Agents</div>
         </div>
-            <div class="cursor-pointer hover:bg-purple-50 rounded-lg p-2 transition-colors" onclick="showDNSDiscoveries()">
+            <div class="cursor-pointer hover:bg-purple-50 rounded-lg p-2 transition-colors" onclick="showAllDiscoveries()">
               <div class="text-3xl font-bold text-purple-600" id="dns-count">{{ dns_discoveries_count or 0 }}</div>
-              <div class="text-sm text-gray-600">DNS Discoveries</div>
+              <div class="text-sm text-gray-600">All Discoveries</div>
             </div>
       </div>
     </div>
@@ -105,8 +105,8 @@
     <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-screen overflow-hidden">
       <div class="p-6 border-b">
         <div class="flex justify-between items-center">
-          <h3 class="text-xl font-bold">DNS Discoveries - Inactive Subdomains</h3>
-          <button onclick="closeDNSModal()" class="text-gray-400 hover:text-gray-600">
+          <h3 class="text-xl font-bold">All Discovered Subdomains</h3>
+          <button onclick="closeDiscoveriesModal()" class="text-gray-400 hover:text-gray-600">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
             </svg>
@@ -115,7 +115,7 @@
       </div>
       <div class="p-6">
         <div class="mb-4">
-          <p class="text-gray-600">These subdomains are not currently active in the main dashboard. They may be down, under development, or not yet activated for monitoring. Use the Status column to see their current state.</p>
+          <p class="text-gray-600">This table shows all discovered subdomains, including active projects and DNS discoveries. "Inactive Discovery" entries are subdomains found via DNS enumeration that aren't actively monitored projects. "Up/Down" entries are project subdomains that are currently not responding.</p>
         </div>
         <div id="dns-table" class="overflow-x-auto">
           <div class="flex items-center justify-center h-32">
@@ -293,11 +293,11 @@ document.getElementById('timeseries-modal').addEventListener('click', function(e
     }
 });
 
-async function showDNSDiscoveries() {
+async function showAllDiscoveries() {
     const modal = document.getElementById('dns-modal');
     const tableContainer = document.getElementById('dns-table');
 
-    tableContainer.innerHTML = '<div class="flex items-center justify-center h-32"><div class="text-gray-500">Loading DNS discoveries...</div></div>';
+    tableContainer.innerHTML = '<div class="flex items-center justify-center h-32"><div class="text-gray-500">Loading all discoveries...</div></div>';
     modal.classList.remove('hidden');
 
     try {
@@ -325,9 +325,12 @@ async function showDNSDiscoveries() {
                     <tbody class="bg-white divide-y divide-gray-200">
             `;
             data.discoveries.forEach(discovery => {
-                const isUp = discovery.is_up !== undefined ? discovery.is_up : (discovery.active && discovery.up);
-                const statusColor = isUp ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
-                const statusText = isUp ? 'Active' : 'Inactive';
+                // For DNS discoveries, status is based on active column (false = inactive discovery)
+                // For inactive subdomains, status is based on is_up (current up/down status)
+                const isActiveDiscovery = discovery.active;
+                const isCurrentlyUp = discovery.is_up !== undefined ? discovery.is_up : false;
+                const statusColor = isActiveDiscovery ? (isCurrentlyUp ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800') : 'bg-gray-100 text-gray-800';
+                const statusText = isActiveDiscovery ? (isCurrentlyUp ? 'Up' : 'Down') : 'Inactive Discovery';
                 tableHtml += `
                     <tr class="hover:bg-gray-50">
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${discovery.subdomain}</td>
@@ -345,14 +348,14 @@ async function showDNSDiscoveries() {
             tableHtml += `</tbody></table>`;
             tableContainer.innerHTML = tableHtml;
         } else {
-            tableContainer.innerHTML = '<div class="flex items-center justify-center h-32"><div class="text-gray-500">No DNS discoveries found.</div></div>';
+            tableContainer.innerHTML = '<div class="flex items-center justify-center h-32"><div class="text-gray-500">No discoveries found.</div></div>';
         }
     } catch (error) {
-        tableContainer.innerHTML = `<div class="flex items-center justify-center h-32"><div class="text-red-500">Error loading DNS discoveries: ${error.message}</div></div>`;
+        tableContainer.innerHTML = `<div class="flex items-center justify-center h-32"><div class="text-red-500">Error loading discoveries: ${error.message}</div></div>`;
     }
 }
 
-function closeDNSModal() {
+function closeDiscoveriesModal() {
     const modal = document.getElementById('dns-modal');
     modal.classList.add('hidden');
 }
@@ -360,7 +363,7 @@ function closeDNSModal() {
 // Close modal when clicking outside
 document.getElementById('dns-modal').addEventListener('click', function(e) {
     if (e.target === this) {
-        closeDNSModal();
+        closeDiscoveriesModal();
     }
 });
 </script>
