@@ -33,7 +33,7 @@ LOCATION="${LOCATION:-UNKNOWN}"
 CENTRAL_API="http://10.27.79.4:8002"  # API port
 INTERVAL=300
 
-# Auto-detect location if not set
+# Auto-detect location if not explicitly set
 if [ "$LOCATION" = "UNKNOWN" ]; then
     IP=$(hostname -I 2>/dev/null | awk '{print $1}' 2>/dev/null || echo "unknown")
     HOSTNAME=$(hostname 2>/dev/null || echo "unknown")
