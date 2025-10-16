@@ -26,7 +26,7 @@ services:
       dockerfile: docker/Dockerfile.backend
     container_name: monitoring-backend
     ports:
-      - "8002:8000"   # HTTP fallback
+      - "8002:8002"   # Frontend & API
       - "8443:8443"   # HTTPS
     environment:
       DATABASE_URL: postgresql://monitor:monitor123@db:5432/monitoring

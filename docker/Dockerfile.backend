@@ -21,7 +21,7 @@ COPY templates/ ./templates/
 RUN chmod +x start_server.py
 
 # Expose ports (HTTP and HTTPS)
-EXPOSE 8000 8443
+EXPOSE 8002 8443
 
-# Run the startup script
-CMD ["python", "start_server.py"]
+    # Run FastAPI app with Uvicorn
+    CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8002"]
