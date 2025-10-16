@@ -62,7 +62,7 @@
             <span class="text-gray-600">Last Check:</span>
             <span class="font-medium text-xs">
               {% if subdomain.last_check %}
-                {{ subdomain.last_check.strftime('%H:%M') }}
+                {{ subdomain.last_check.astimezone().strftime('%H:%M UTC') }}
               {% else %}
                 Never
               {% endif %}

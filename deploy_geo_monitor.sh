@@ -147,13 +147,20 @@ command -v ssh >/dev/null 2>&1 || { echo "❌ ssh required"; exit 1; }
 echo "🌍 BetterGovPH Geo-Monitoring Deployment"
 echo "========================================"
 
-# Deploy to Singapore
-echo "📍 Deploying to Singapore..."
-deploy_to_server "joebert@10.27.79.1" "$HOME/.ssh/klti" "SG"
+# Check command line arguments
+TARGET="${1:-all}"
 
-# Deploy to Philippines
-echo "🇵🇭 Deploying to Philippines..."
-deploy_to_server "ubnt@192.168.15.12" "$HOME/.ssh/klti" "PH"
+if [ "$TARGET" = "sg" ] || [ "$TARGET" = "all" ]; then
+    # Deploy to Singapore
+    echo "📍 Deploying to Singapore..."
+    deploy_to_server "joebert@10.27.79.1" "$HOME/.ssh/klti" "SG"
+fi
+
+if [ "$TARGET" = "ph" ] || [ "$TARGET" = "all" ]; then
+    # Deploy to Philippines
+    echo "🇵🇭 Deploying to Philippines..."
+    deploy_to_server "ubnt@192.168.15.12" "$HOME/.ssh/klti" "PH"
+fi
 
 echo "🎉 Ultra-minimal geo-monitoring agents deployed!"
 echo "📊 Check monitor.log on each server for agent status"

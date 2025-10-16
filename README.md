@@ -2,22 +2,52 @@
 
 A dynamic AI-powered monitoring dashboard for bettergov.ph, inspired by Nagios and MRTG. Built with server-side rendering, FastAPI, and TimescaleDB for high-performance time series monitoring.
 
+## 🤖 Why Build Our Own?
+
+While powerful monitoring tools like Nagios, Zabbix, and Prometheus exist, we chose to build our own AI-native monitoring system for several reasons:
+
+### 🎯 **AI-First Design**
+- **Custom AI Integration**: Built from the ground up for AI-powered insights, anomaly detection, and predictive monitoring
+- **Application-Specific**: Tailored for government transparency platforms with domain-specific metrics
+- **Future-Ready**: Extensible architecture for advanced AI features like automated incident response and root cause analysis
+
+### ⚡ **Performance & Simplicity**
+- **Server-Side Rendering**: Eliminates client-side JavaScript overhead for instant page loads
+- **Minimal Dependencies**: No complex JavaScript frameworks or heavy monitoring agents
+- **Container Optimized**: Designed for cloud-native deployment with minimal resource usage
+- **BusyBox Compatible**: Agents run on the most minimal Linux systems
+
+### 🌐 **Geo-Distributed Architecture**
+- **Global Coverage**: Built-in support for distributed monitoring agents across multiple geographic regions
+- **Network Awareness**: Understands latency and connectivity patterns across different locations
+- **Federated Design**: Decentralized agents report to central API without complex orchestration
+
+### 🔧 **Developer Experience**
+- **Simple Deployment**: Single-command deployment with Docker and automated scripts
+- **Easy Customization**: Python-based backend makes it easy to add new monitoring checks and AI features
+- **Transparent Architecture**: No vendor lock-in or proprietary monitoring protocols
+
+**The future of monitoring is AI-specific, not generic.** This system provides the foundation for intelligent, automated monitoring that learns from your infrastructure and proactively identifies issues before they impact users.
+
 ## 🚀 Features
 
 - **Real-time Monitoring**: Integrated scheduler with live data updates
 - **Server-side Rendering**: Fast, reliable HTML generation with Jinja2
+- **Geo-distributed Monitoring**: Agents in EU, SG, PH locations for global coverage
 - **FastAPI Backend**: High-performance async API with Python
-- **TimescaleDB**: Optimized time series database
+- **TimescaleDB**: Optimized time series database for monitoring data
 - **Container Ready**: Docker and docker-compose setup
-- **Clean UI**: Tailwind CSS with minimal JavaScript
+- **Clean UI**: Tailwind CSS with minimal JavaScript and D3.js charts
 - **Nagios-inspired**: Status overviews, alerts, and service monitoring
+- **BusyBox Compatible**: Agents run on minimal Linux systems
 
 ## 🛠 Tech Stack
 
-- **Frontend**: Server-side rendered HTML + Tailwind CSS + minimal JavaScript
-- **Backend**: FastAPI (Python) + Jinja2 templates + WebSockets
-- **Database**: TimescaleDB (PostgreSQL extension)
-- **Deployment**: Docker + Docker Compose
+- **Frontend**: Server-side rendered HTML + Tailwind CSS + D3.js charts
+- **Backend**: FastAPI (Python) + Jinja2 templates + APScheduler
+- **Database**: TimescaleDB (PostgreSQL extension for time series)
+- **Geo-Agents**: Bash scripts compatible with BusyBox (minimal Linux)
+- **Deployment**: Docker + Docker Compose + automated deployment scripts
 
 ## 📦 Quick Start
 

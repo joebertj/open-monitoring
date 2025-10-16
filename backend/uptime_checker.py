@@ -20,7 +20,7 @@ class PlatformDetector:
     """Detect web server platforms based on HTTP headers and responses"""
 
     @staticmethod
-    def detect_platform(headers, response_text=""):
+    def detect_platform(headers, response_text="", subdomain=""):
         """Detect platform from HTTP headers and response content"""
         headers = {k.lower(): v for k, v in headers.items()}
 
@@ -164,6 +164,20 @@ class PlatformDetector:
 
         # Check response content for common signatures
         if response_text:
+            # Modern build tools and frameworks (check first, more specific)
+            if 'vite.svg' in response_text or '/assets/index-' in response_text:
+                return 'Vite (React/Vue)'
+            elif 'tailwind.config' in response_text and 'cdn.tailwindcss.com' in response_text:
+                return 'Tailwind CSS + Custom'
+            elif 'data-reactroot' in response_text or 'data-react-helmet' in response_text:
+                return 'React'
+            elif 'data-v-' in response_text:
+                return 'Vue.js'
+            elif 'ng-app' in response_text or 'ng-controller' in response_text:
+                return 'AngularJS'
+            elif 'angular' in response_text.lower() and ('component' in response_text.lower() or 'directive' in response_text.lower()):
+                return 'Angular'
+
             # WordPress detection
             if 'wp-content' in response_text or 'wp-includes' in response_text or 'wp-json' in response_text:
                 return 'WordPress'
@@ -194,13 +208,18 @@ class PlatformDetector:
             elif 'eleventy' in response_text.lower() or '11ty' in response_text.lower():
                 return 'Eleventy'
 
-            # Other frameworks
-            elif 'react' in response_text.lower() and 'data-reactroot' in response_text.lower():
-                return 'React'
-            elif 'vue' in response_text.lower() and 'data-v-' in response_text:
-                return 'Vue.js'
-            elif 'angular' in response_text.lower():
-                return 'Angular'
+            # API and documentation patterns
+            elif 'swagger' in response_text.lower() or 'openapi' in response_text.lower():
+                return 'API Documentation'
+            elif 'api' in subdomain.lower() and ('json' in response_text[:500].lower() or 'endpoint' in response_text.lower()):
+                return 'REST API'
+
+            # Philippine Government specific
+            elif 'bettergov' in response_text.lower() or 'philippine' in response_text.lower():
+                if 'api' in subdomain.lower():
+                    return 'BetterGov API'
+                else:
+                    return 'BetterGov Platform'
 
         return 'Unknown'
 
@@ -276,10 +295,10 @@ class UptimeChecker:
                         try:
                             text = await response.text()
                             result['platform'] = PlatformDetector.detect_platform(
-                                response.headers, text[:10240]
+                                response.headers, text[:10240], result['subdomain']
                             )
                         except:
-                            result['platform'] = PlatformDetector.detect_platform(response.headers)
+                            result['platform'] = PlatformDetector.detect_platform(response.headers, subdomain=result['subdomain'])
 
                         break  # Success with this protocol
 
