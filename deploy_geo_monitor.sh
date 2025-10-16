@@ -135,7 +135,7 @@ deploy_to_server() {
     generate_monitor_script | ssh -i "$key_path" "$server" "cat > geo_monitor.sh && chmod +x geo_monitor.sh"
 
     # Start the agent directly with location override
-    ssh -i "$key_path" "$server" "LOCATION=\"$location\" ./geo_monitor.sh > monitor.log 2>&1 &"
+    ssh -i "$key_path" "$server" "export LOCATION=\"$location\" && ./geo_monitor.sh > monitor.log 2>&1 &"
 
     echo "✅ Deployed ultra-minimal monitoring agent to $server"
 }
