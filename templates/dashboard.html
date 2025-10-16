@@ -175,6 +175,10 @@ function renderTimeSeriesChart(checks, subdomain) {
         });
     });
 
+    // Debug: Show what locations we have
+    console.log('Available locations:', Object.keys(locationData));
+    console.log('Location data counts:', Object.keys(locationData).map(loc => `${loc}: ${locationData[loc].length}`));
+
     // Prioritize SG as bars, then EU as lines
     const locationOrder = ['SG', 'EU', 'PH'];
     const sortedLocations = Object.keys(locationData).sort((a, b) => {

@@ -112,9 +112,10 @@ async def update_projects_in_db(projects):
     """Update the database with the scraped projects"""
 
     print("\n💾 Updating database with discovered projects...")
-    pool = await asyncpg.create_pool(
-        os.getenv("DATABASE_URL", "postgresql://monitor:monitor123@localhost:5433/monitoring")
-    )
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        raise ValueError("DATABASE_URL environment variable must be set")
+    pool = await asyncpg.create_pool(database_url)
 
     try:
         # Move current projects to other_dns (except visualizations)

@@ -7,6 +7,7 @@ Run this after starting the Docker containers
 import asyncio
 import asyncpg
 import json
+import os
 import random
 from datetime import datetime, timedelta
 
@@ -14,13 +15,10 @@ async def insert_sample_data():
     """Insert sample monitoring data for testing"""
 
     # Connect to database
-    conn = await asyncpg.connect(
-        user='monitor',
-        password='monitor123',
-        database='monitoring',
-        host='localhost',
-        port=5433
-    )
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        raise ValueError("DATABASE_URL environment variable must be set")
+    conn = await asyncpg.connect(database_url)
 
     print("Connected to database")
 

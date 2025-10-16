@@ -180,6 +180,7 @@ keys/
 .env.local
 .env.production
 .env.staging
+backend/.env
 
 # Generated documentation
 docs/build/

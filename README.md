@@ -217,10 +217,16 @@ Real-time updates endpoint.
 
 ### Environment Variables
 
-Create a `.env` file in the backend directory:
+Copy the example environment file and configure your database connection:
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+Then edit `backend/.env` with your actual database credentials:
 
 ```env
-DATABASE_URL=postgresql://monitor:monitor123@db:5432/monitoring
+DATABASE_URL=postgresql://username:password@host:port/database
 ```
 
 ### CORS Configuration
@@ -292,10 +298,38 @@ response = requests.post("http://localhost:8000/api/metrics", json=metric)
 
 ## 🚀 Deployment
 
+### Automated Deployment (Server)
+
+For server deployments, use the automated deployment script:
+
+```bash
+# Run deployment script (pulls code + restarts containers)
+./deploy.sh
+```
+
+This script will:
+1. Pull the latest code from git
+2. Restart all containers to apply changes
+3. Display deployment status
+
+### Manual Deployment
+
+```bash
+# Pull latest code
+git pull
+
+# Restart containers to apply changes
+cd docker
+docker-compose restart
+
+# Or rebuild if dependencies changed
+docker-compose up -d --build
+```
+
 ### Production Build
 
 ```bash
-# Build frontend
+# Build frontend (if using)
 cd frontend
 npm run build
 

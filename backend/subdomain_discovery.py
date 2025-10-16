@@ -48,8 +48,11 @@ class SubdomainDiscovery:
 
     async def get_db_pool(self):
         if self.db_pool is None:
+            database_url = os.getenv("DATABASE_URL")
+            if not database_url:
+                raise ValueError("DATABASE_URL environment variable must be set")
             self.db_pool = await asyncpg.create_pool(
-                os.getenv("DATABASE_URL", "postgresql://monitor:monitor123@db:5432/monitoring"),
+                database_url,
                 min_size=5,
                 max_size=20
             )
