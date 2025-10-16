@@ -20,7 +20,7 @@
           <div class="text-sm text-gray-600">Total Agents</div>
         </div>
             <div class="cursor-pointer hover:bg-purple-50 rounded-lg p-2 transition-colors" onclick="showDNSDiscoveries()">
-              <div class="text-3xl font-bold text-purple-600">{{ dns_discoveries_count }}</div>
+              <div class="text-3xl font-bold text-purple-600" id="dns-count">{{ dns_discoveries_count or 0 }}</div>
               <div class="text-sm text-gray-600">DNS Discoveries</div>
             </div>
       </div>
@@ -304,6 +304,12 @@ async function showDNSDiscoveries() {
         const response = await fetch('/api/dns-discoveries');
         const data = await response.json();
 
+        // Update the count in the dashboard
+        const countElement = document.getElementById('dns-count');
+        if (countElement && data.count !== undefined) {
+            countElement.textContent = data.count;
+        }
+
         if (data.discoveries && data.discoveries.length > 0) {
             let tableHtml = `
                 <table class="min-w-full divide-y divide-gray-200">
@@ -312,15 +318,16 @@ async function showDNSDiscoveries() {
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subdomain</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Discovery Method</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Discovered At</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Platform</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Seen</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
             `;
             data.discoveries.forEach(discovery => {
-                const statusColor = discovery.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
-                const statusText = discovery.active ? 'Active' : 'Inactive';
+                const isUp = discovery.is_up !== undefined ? discovery.is_up : (discovery.active && discovery.up);
+                const statusColor = isUp ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+                const statusText = isUp ? 'Active' : 'Inactive';
                 tableHtml += `
                     <tr class="hover:bg-gray-50">
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${discovery.subdomain}</td>
@@ -329,8 +336,8 @@ async function showDNSDiscoveries() {
                                 ${statusText}
                             </span>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${discovery.discovery_method}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${discovery.discovered_at ? new Date(discovery.discovered_at).toLocaleDateString() : 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${discovery.discovery_method || 'Unknown'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${discovery.platform || 'Unknown'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${discovery.last_seen ? new Date(discovery.last_seen).toLocaleString() : 'Never'}</td>
                     </tr>
                 `;
