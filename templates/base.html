@@ -62,7 +62,7 @@
             subdomains.forEach(subdomain => {
                 const card = document.querySelector(`[onclick*="${subdomain.subdomain}"]`);
                 if (card) {
-                    // Update status
+                    // Update status - find the status badge (has rounded classes)
                     const statusSpan = card.querySelector('.px-2.py-1.rounded-full');
                     if (statusSpan) {
                         statusSpan.className = `px-2 py-1 rounded-full text-xs font-medium ${
@@ -77,8 +77,15 @@
                         uptimeSpan.textContent = `${subdomain.uptime_percentage.toFixed(1)}%`;
                     }
 
-                    // Update last check time
-                    const lastCheckSpan = card.querySelector('.font-medium.text-xs');
+                    // Update last check time - find the span that comes after "Last Check:"
+                    const lastCheckLabels = card.querySelectorAll('span');
+                    let lastCheckSpan = null;
+                    for (let i = 0; i < lastCheckLabels.length; i++) {
+                        if (lastCheckLabels[i].textContent.includes('Last Check:')) {
+                            lastCheckSpan = lastCheckLabels[i].nextElementSibling;
+                            break;
+                        }
+                    }
                     if (lastCheckSpan && subdomain.last_check) {
                         const date = new Date(subdomain.last_check);
                         lastCheckSpan.textContent = date.toLocaleTimeString('en-US', {
