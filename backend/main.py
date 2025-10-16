@@ -666,8 +666,11 @@ async def receive_geo_report(report: dict):
 @app.get("/api/dns-discoveries")
 async def get_dns_discoveries():
     """Get all DNS discoveries (inactive subdomains and other DNS)"""
+    print("API: Getting DNS discoveries")
     inactive_subdomains = await get_inactive_subdomains()
     other_dns = await get_other_dns()
+
+    print(f"API: Found {len(inactive_subdomains)} inactive subdomains, {len(other_dns)} other DNS")
 
     # Combine both lists
     discoveries = inactive_subdomains + other_dns
@@ -695,6 +698,7 @@ async def get_dns_discoveries():
             "discovery_method": discovery.get("discovery_method", "Unknown")
         })
 
+    print(f"API: Returning {len(formatted_discoveries)} discoveries")
     return {"discoveries": formatted_discoveries}
 
 @app.get("/api/agent-status")
