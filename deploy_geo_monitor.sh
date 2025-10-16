@@ -30,7 +30,7 @@ detect_location() {
 
 # Configuration
 LOCATION="${LOCATION:-UNKNOWN}"
-CENTRAL_API="http://86.81.7.94:8002"
+CENTRAL_API="http://10.27.79.4:8002"  # API port
 INTERVAL=300
 
 # Auto-detect location if not set

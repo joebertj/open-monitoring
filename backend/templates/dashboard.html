@@ -6,7 +6,6 @@
 <div class="space-y-6">
     <!-- Header Stats -->
     <div class="bg-white p-6 rounded-lg shadow">
-      <h2 class="text-2xl font-bold mb-4">BetterGovPH Project Monitoring</h2>
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
         <div>
           <div class="text-3xl font-bold text-blue-600">{{ subdomains|length }}</div>
@@ -17,8 +16,8 @@
           <div class="text-sm text-gray-600">Currently Up</div>
         </div>
         <div>
-          <div class="text-3xl font-bold text-gray-600">{{ total_checks }}</div>
-          <div class="text-sm text-gray-600">Total Checks</div>
+          <div class="text-3xl font-bold text-gray-600">{{ total_agents }}</div>
+          <div class="text-sm text-gray-600">Total Agents</div>
         </div>
         <div class="cursor-pointer hover:bg-purple-50 rounded-lg p-2 transition-colors" onclick="showDNSDiscoveries()">
           <div class="text-3xl font-bold text-purple-600">{{ other_dns|length }}</div>
@@ -76,7 +75,7 @@
 
     <!-- Time Series Modal -->
     <div id="timeseries-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
-      <div class="flex items-center justify-center min-h-screen p-4">
+      <div class="flex items-start justify-center min-h-screen p-4 pt-20">
         <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-screen overflow-hidden">
           <div class="p-6 border-b">
             <div class="flex justify-between items-center">

@@ -1,23 +1,21 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 import asyncpg
 import json
 import asyncio
 from datetime import datetime, timedelta
-from typing import List, Dict, Any
-import os
-import ssl
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
-from uptime_checker import UptimeChecker
+from typing import Dict, Any
+import os
 
-app = FastAPI(title="Open Monitoring API", version="1.0.0")
+from utils.uptime_checker import UptimeChecker
 
-# Mount static files and templates
-app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
+app = FastAPI(title="BetterGovPH Open Monitoring API")
 
 # SSL Configuration for HTTPS
 ssl_enabled = os.path.exists("ssl/cert.pem") and os.path.exists("ssl/key.pem")
@@ -26,14 +24,20 @@ if ssl_enabled:
 else:
     print("⚠️  SSL certificates not found, running HTTP only")
 
-# CORS middleware for frontend
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://mon.altgovph.site"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Templates
+templates = Jinja2Templates(directory="templates")
 
 # Database connection pool
 db_pool = None
@@ -51,7 +55,7 @@ async def get_db_pool():
 # WebSocket connection manager
 class ConnectionManager:
     def __init__(self):
-        self.active_connections: List[WebSocket] = []
+        self.active_connections: list[WebSocket] = []
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
@@ -76,12 +80,13 @@ uptime_checker = UptimeChecker()
 @app.on_event("startup")
 async def startup_event():
     await get_db_pool()
-    # Auto-start scheduler on application startup
-    try:
-        print("🔄 Auto-starting monitoring scheduler...")
-        await start_scheduler_internal()
-    except Exception as e:
-        print(f"⚠️  Failed to auto-start scheduler: {e}")
+    # Auto-start scheduler on application startup - DISABLED for debugging
+    # try:
+    #     print("🔄 Auto-starting monitoring scheduler...")
+    #     await start_scheduler_internal()
+    # except Exception as e:
+    #     print(f"⚠️  Failed to auto-start scheduler: {e}")
+    print("🔄 Scheduler disabled for debugging")
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -160,7 +165,7 @@ async def get_recent_alerts(limit: int = 50):
     return []
 
 # Dashboard routes
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
     """Serve the main dashboard page"""
     try:
@@ -172,7 +177,13 @@ async def dashboard(request: Request):
         # Calculate stats
         warning_alerts = [a for a in alerts_data if a.get('severity') == 'warning']
         critical_alerts = [a for a in alerts_data if a.get('severity') == 'critical']
-        total_checks = sum(sd.get('check_count', 0) for sd in subdomains_data)
+
+        # Get total agents (unique monitoring locations)
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            # Count distinct locations, defaulting to 3 known agents if no data exists
+            total_agents_result = await conn.fetchval("SELECT COUNT(DISTINCT COALESCE(location, 'EU')) FROM monitoring.uptime_checks")
+            total_agents = max(total_agents_result or 0, 3)  # At least 3 agents (EU, SG, PH)
 
         return templates.TemplateResponse("dashboard.html", {
             "request": request,
@@ -181,7 +192,7 @@ async def dashboard(request: Request):
             "alerts": alerts_data,
             "warning_alerts": warning_alerts,
             "critical_alerts": critical_alerts,
-            "total_checks": total_checks
+            "total_agents": total_agents
         })
     except Exception as e:
         return templates.TemplateResponse("dashboard.html", {
@@ -190,11 +201,11 @@ async def dashboard(request: Request):
             "alerts": [],
             "warning_alerts": [],
             "critical_alerts": [],
-            "total_checks": 0,
+            "total_agents": 0,
             "error": str(e)
         })
 
-@app.get("/alerts")
+@app.get("/alerts", response_class=HTMLResponse)
 async def alerts_page(request: Request):
     """Serve the alerts page"""
     try:
@@ -210,9 +221,15 @@ async def alerts_page(request: Request):
             "error": str(e)
         })
 
-@app.get("/api/")
-async def root():
+@app.get("/test-api")
+def root():
+    print("API root endpoint called")
     return {"message": "Open Monitoring API", "status": "running"}
+
+@app.get("/simple-test")
+def test_simple():
+    print("Simple test endpoint called")
+    return {"test": "simple", "status": "ok"}
 
 @app.get("/api/health")
 async def health_check():
@@ -500,8 +517,9 @@ async def run_manual_checks():
         return {"error": str(e)}
 
 @app.get("/api/subdomains")
-async def get_subdomains():
+async def get_subdomains(request: Request):
     """Get all discovered subdomains with their status"""
+    print(f"Subdomains endpoint called from {request.client.host}")
     pool = await get_db_pool()
     rows = await pool.fetch("""
         SELECT
