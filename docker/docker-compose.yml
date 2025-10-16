@@ -36,6 +36,8 @@ services:
     volumes:
       - ../backend:/app
       - ../ssl:/app/ssl
+      - ../static:/app/static
+      - ../templates:/app/templates
     restart: unless-stopped
 
 volumes:

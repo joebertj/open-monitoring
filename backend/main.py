@@ -541,7 +541,7 @@ async def get_subdomain_checks(subdomain: str, hours: int = 24):
     pool = await get_db_pool()
 
     query = """
-    SELECT time, status_code, response_time_ms, up, platform, error_message
+    SELECT time, status_code, response_time_ms, up, platform, error_message, location
     FROM monitoring.uptime_checks
     WHERE subdomain = $1 AND time > $2
     ORDER BY time DESC
@@ -557,7 +557,8 @@ async def get_subdomain_checks(subdomain: str, hours: int = 24):
             "response_time_ms": float(row["response_time_ms"]) if row["response_time_ms"] else None,
             "up": row["up"],
             "platform": row["platform"],
-            "error_message": row["error_message"]
+            "error_message": row["error_message"],
+            "location": row["location"] or "EU"
         })
 
     return {"subdomain": subdomain, "checks": checks}

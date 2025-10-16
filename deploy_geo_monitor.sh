@@ -29,20 +29,22 @@ detect_location() {
 # Compatible with BusyBox ash/sh, maximum compatibility
 
 # Configuration
-LOCATION="UNKNOWN"
-CENTRAL_API="https://mon.altgovph.site:8443"
+LOCATION="${LOCATION:-UNKNOWN}"
+CENTRAL_API="http://86.81.7.94:8002"
 INTERVAL=300
 
-# Auto-detect location
-IP=$(hostname -I 2>/dev/null | awk '{print $1}' 2>/dev/null || echo "unknown")
-HOSTNAME=$(hostname 2>/dev/null || echo "unknown")
+# Auto-detect location if not set
+if [ "$LOCATION" = "UNKNOWN" ]; then
+    IP=$(hostname -I 2>/dev/null | awk '{print $1}' 2>/dev/null || echo "unknown")
+    HOSTNAME=$(hostname 2>/dev/null || echo "unknown")
 
-if echo "$IP" | grep -q "192\.168\.15\." || echo "$HOSTNAME" | grep -qi "ph"; then
-    LOCATION="PH"
-elif echo "$IP" | grep -q "10\.27\.79\." || echo "$HOSTNAME" | grep -qi "sg"; then
-    LOCATION="SG"
-else
-    LOCATION="EU"
+    if echo "$IP" | grep -q "192\.168\.15\." || echo "$HOSTNAME" | grep -qi "ph"; then
+        LOCATION="PH"
+    elif echo "$IP" | grep -q "10\.27\.79\." || echo "$HOSTNAME" | grep -qi "sg"; then
+        LOCATION="SG"
+    else
+        LOCATION="EU"
+    fi
 fi
 
 echo "Agent: $LOCATION started"
@@ -132,8 +134,8 @@ deploy_to_server() {
     # Generate and deploy the ultra-minimal script
     generate_monitor_script | ssh -i "$key_path" "$server" "cat > geo_monitor.sh && chmod +x geo_monitor.sh"
 
-    # Start the agent directly
-    ssh -i "$key_path" "$server" "./geo_monitor.sh > monitor.log 2>&1 &"
+    # Start the agent directly with location override
+    ssh -i "$key_path" "$server" "LOCATION=\"$location\" ./geo_monitor.sh > monitor.log 2>&1 &"
 
     echo "✅ Deployed ultra-minimal monitoring agent to $server"
 }
@@ -153,8 +155,7 @@ deploy_to_server "joebert@10.27.79.1" "$HOME/.ssh/klti" "SG"
 echo "🇵🇭 Deploying to Philippines..."
 deploy_to_server "ubnt@192.168.15.12" "$HOME/.ssh/klti" "PH"
 
-echo "🎉 Geo-monitoring agents deployed!"
+echo "🎉 Ultra-minimal geo-monitoring agents deployed!"
 echo "📊 Check monitor.log on each server for agent status"
-echo "🔧 Check supervisor.log on each server for supervisor status"
-echo "🛑 To stop: ssh to server and run 'pkill -f geo_supervisor.sh'"
-echo "💓 Agents will auto-restart if they crash"
+echo "🛑 To stop: ssh to server and run 'pkill -f geo_monitor.sh'"
+echo "⚠️  Agents run directly without supervisor - if they crash, they stay down"

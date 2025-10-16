@@ -237,7 +237,13 @@ function renderTimeSeriesChart(checks, subdomain) {
     locations.slice(1).forEach((location, locationIndex) => {
         const data = locationData[location];
         const color = locationColors[location];
-        const lineColor = location === 'SG' ? '#10b981' : '#ef4444'; // Green for SG, Red for PH
+        // Map location colors to hex values for SVG
+        const locationHexColors = {
+            'EU': '#3b82f6', // blue
+            'SG': '#10b981', // green
+            'PH': '#ef4444'  // red
+        };
+        const lineColor = locationHexColors[location] || '#6b7280'; // gray fallback
 
         // Draw line
         let pathData = '';
