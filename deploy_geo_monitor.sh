@@ -30,7 +30,7 @@ detect_location() {
 
 # Configuration
 LOCATION="${LOCATION:-UNKNOWN}"
-CENTRAL_API="http://10.27.79.4:8002"  # API port
+CENTRAL_API="http://10.27.79.2:8002"  # API port
 INTERVAL=300
 
 # Auto-detect location if not explicitly set
@@ -77,7 +77,7 @@ check_subdomain() {
 get_subdomains() {
     response=$(curl -s --max-time 30 "$CENTRAL_API/api/subdomains" 2>/dev/null)
     if [ -z "$response" ]; then
-        response=$(curl -s --max-time 30 "http://10.27.79.4:8002/api/subdomains" 2>/dev/null)
+        response=$(curl -s --max-time 30 "http://10.27.79.2:8002/api/subdomains" 2>/dev/null)
     fi
     echo "$response" | grep -o '"subdomain":"[^"]*"' | cut -d'"' -f4
 }
@@ -89,7 +89,7 @@ report_results() {
 
     response=$(curl -s -X POST -H "Content-Type: application/json" -d "$payload" --max-time 30 "$CENTRAL_API/api/geo-report" 2>/dev/null)
         if [ -z "$response" ]; then
-            curl -s -X POST -H "Content-Type: application/json" -d "$payload" --max-time 30 "http://10.27.79.4:8002/api/geo-report" >/dev/null 2>&1
+            curl -s -X POST -H "Content-Type: application/json" -d "$payload" --max-time 30 "http://10.27.79.2:8002/api/geo-report" >/dev/null 2>&1
         fi
 }
 
