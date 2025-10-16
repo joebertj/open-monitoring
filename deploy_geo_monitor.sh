@@ -21,7 +21,7 @@ detect_location() {
     fi
 }
 
-# Generate monitoring agent script
+# Generate monitoring agent script (sophisticated but compatible)
 generate_monitor_script() {
     cat << 'EOF'
 #!/usr/bin/env python3
@@ -39,20 +39,25 @@ import sys
 from datetime import datetime
 
 class GeoMonitor:
-    def __init__(self, location_name, central_api_url="http://mon.altgovph.site:8002"):
+    def __init__(self, location_name, central_api_url="https://mon.altgovph.site:8443"):
         self.location_name = location_name
         self.central_api_url = central_api_url
         self.session = None
 
     async def init_session(self):
-        self.session = aiohttp.ClientSession()
+        """Initialize HTTP session with SSL context for self-signed certs"""
+        connector = aiohttp.TCPConnector(verify_ssl=False)  # For self-signed certificates
+        self.session = aiohttp.ClientSession(connector=connector)
 
     async def close_session(self):
+        """Close HTTP session"""
         if self.session:
             await self.session.close()
 
     async def check_subdomain(self, subdomain):
+        """Check a single subdomain"""
         start_time = time.time()
+
         try:
             async with self.session.head(f"https://{subdomain}", timeout=aiohttp.ClientTimeout(total=10)) as response:
                 response_time = (time.time() - start_time) * 1000
@@ -77,6 +82,7 @@ class GeoMonitor:
             }
 
     async def get_subdomains_from_central(self):
+        """Get list of subdomains to monitor"""
         try:
             async with self.session.get(f"{self.central_api_url}/api/subdomains") as response:
                 if response.status == 200:
@@ -87,6 +93,7 @@ class GeoMonitor:
             return []
 
     async def report_results(self, results):
+        """Report monitoring results"""
         try:
             payload = {"results": results, "location": self.location_name}
             async with self.session.post(f"{self.central_api_url}/api/geo-report", json=payload) as response:
@@ -95,10 +102,14 @@ class GeoMonitor:
             return False
 
     async def run_monitoring_cycle(self):
+        """Run one monitoring cycle"""
         subdomains = await self.get_subdomains_from_central()
         if not subdomains:
             return
 
+        print(f"📊 Monitoring {len(subdomains)} subdomains from {self.location_name}")
+
+        # Check all subdomains concurrently
         tasks = [self.check_subdomain(subdomain) for subdomain in subdomains]
         results = await asyncio.gather(*tasks)
 
@@ -108,6 +119,7 @@ class GeoMonitor:
         print(f"{status} {self.location_name}: {up_count}/{len(results)} up")
 
     async def run_continuous_monitoring(self, interval_minutes=5):
+        """Run continuous monitoring"""
         print(f"🚀 Monitoring started from {self.location_name}")
         while True:
             try:
@@ -117,9 +129,13 @@ class GeoMonitor:
             await asyncio.sleep(interval_minutes * 60)
 
 async def main():
-    # Auto-detect location
-    hostname = socket.gethostname()
-    ip = socket.gethostbyname(hostname)
+    # Auto-detect location based on hostname/IP
+    try:
+        hostname = socket.gethostname()
+        ip = socket.gethostbyname(hostname)
+    except:
+        hostname = "unknown"
+        ip = "unknown"
 
     if "ph" in hostname.lower() or ip.startswith("192.168.15."):
         location = "PH"
@@ -129,6 +145,7 @@ async def main():
         location = os.getenv("MONITOR_LOCATION", "UNKNOWN")
 
     monitor = GeoMonitor(location)
+
     try:
         await monitor.init_session()
         await monitor.run_continuous_monitoring()
@@ -156,15 +173,19 @@ PID_FILE="geo_monitor.pid"
 echo "$(date): Starting geo-monitoring supervisor" >> "$LOG_FILE"
 
 while true; do
-    # Check if agent is running
-    if pgrep -f "$AGENT_SCRIPT" > /dev/null; then
-        # Agent is running, check if it's healthy (responding to basic checks)
+    # Check if agent is running (using basic ps command)
+    if ps aux | grep -v grep | grep "$AGENT_SCRIPT" > /dev/null; then
+        # Agent is running, check if it's healthy
         sleep 300  # Check every 5 minutes
     else
         echo "$(date): Agent crashed or not running, restarting..." >> "$LOG_FILE"
 
-        # Clean up any zombie processes
-        pkill -f "$AGENT_SCRIPT" || true
+        # Clean up any existing processes (using basic commands)
+        # Find PIDs and kill them (works on minimal systems)
+        ps aux | grep -v grep | grep "$AGENT_SCRIPT" | while read -r line; do
+            pid=$(echo "$line" | tr -s ' ' | cut -d' ' -f2)
+            kill -9 "$pid" 2>/dev/null || true
+        done
 
         # Start the agent
         nohup python3 "$AGENT_SCRIPT" > monitor.log 2>&1 &
@@ -194,8 +215,19 @@ deploy_to_server() {
     generate_supervisor_script | ssh -i "$key_path" "$server" "cat > geo_supervisor.sh && chmod +x geo_supervisor.sh"
 
     # Start the supervisor (which will manage the monitoring agent)
-    ssh -i "$key_path" "$server" "pkill -f geo_supervisor.sh || true"
-    ssh -i "$key_path" "$server" "pkill -f geo_monitor.py || true"
+    # Clean up any existing processes using basic commands
+    ssh -i "$key_path" "$server" "
+        # Kill any existing supervisor processes
+        ps aux | grep -v grep | grep 'geo_supervisor.sh' | while read -r line; do
+            pid=\$(echo \"\$line\" | tr -s ' ' | cut -d' ' -f2)
+            kill -9 \$pid 2>/dev/null || true
+        done
+        # Kill any existing monitor processes
+        ps aux | grep -v grep | grep 'geo_monitor.py' | while read -r line; do
+            pid=\$(echo \"\$line\" | tr -s ' ' | cut -d' ' -f2)
+            kill -9 \$pid 2>/dev/null || true
+        done
+    "
     ssh -i "$key_path" "$server" "nohup ./geo_supervisor.sh > supervisor.log 2>&1 &"
 
     echo "✅ Deployed monitoring agent to $server"
