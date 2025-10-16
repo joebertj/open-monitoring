@@ -220,6 +220,11 @@ async def dashboard(request: Request):
         warning_alerts = [a for a in alerts_data if a.get('severity') == 'warning']
         critical_alerts = [a for a in alerts_data if a.get('severity') == 'critical']
 
+        # Add UTC+8 time to subdomains for consistent display
+        for subdomain in subdomains_data:
+            if subdomain.get('last_check'):
+                subdomain['last_check_utc8'] = subdomain['last_check'] + timedelta(hours=8)
+
         # Get total agents (unique monitoring locations)
         pool = await get_db_pool()
         async with pool.acquire() as conn:

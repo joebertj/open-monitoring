@@ -88,11 +88,13 @@
                     }
                     if (lastCheckSpan && subdomain.last_check) {
                         const date = new Date(subdomain.last_check);
+                        // Add 8 hours for UTC+8 display
+                        date.setHours(date.getHours() + 8);
                         lastCheckSpan.textContent = date.toLocaleTimeString('en-US', {
                             hour: '2-digit',
                             minute: '2-digit',
                             timeZone: 'UTC'
-                        }) + ' UTC';
+                        }) + ' UTC+8';
                     }
                 }
             });

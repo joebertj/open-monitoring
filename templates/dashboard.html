@@ -61,8 +61,8 @@
           <div class="flex justify-between">
             <span class="text-gray-600">Last Check:</span>
             <span class="font-medium text-xs">
-              {% if subdomain.last_check %}
-                {{ subdomain.last_check.strftime('%H:%M UTC') }}
+              {% if subdomain.last_check_utc8 %}
+                {{ subdomain.last_check_utc8.strftime('%H:%M UTC+8') }}
               {% else %}
                 Never
               {% endif %}
