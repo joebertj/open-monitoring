@@ -15,9 +15,8 @@ check_subdomain() {
     start_time=$(date +%s 2>/dev/null || echo "0")
 
     # Try HTTPS first, fallback to HTTP
-    response=$(curl -s -w "%{http_code}|%{time_total}" --max-time 10 "https://$subdomain/" 2>/dev/null)
-    http_code=$(echo "$response" | cut -d'|' -f1)
-    response_time=$(echo "$response" | cut -d'|' -f2 | awk '{printf "%.0f", $1 * 1000}' 2>/dev/null || echo "0")
+    http_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "https://$subdomain/" 2>/dev/null)
+    response_time=$(curl -s -o /dev/null -w "%{time_total}" --max-time 10 "https://$subdomain/" 2>/dev/null | awk '{printf "%.0f", $1 * 1000}' 2>/dev/null || echo "0")
 
     if [ "$http_code" = "000" ]; then
         http_code="null"
