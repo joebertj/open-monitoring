@@ -8,11 +8,8 @@ import uvicorn
 import os
 
 # Always run on HTTP for development - nginx will handle SSL in production
-print('🌐 Starting HTTP server on port 8000')
+print('🌐 Starting HTTP server on port 8002')
 
-# Run Flask app with Gunicorn
-from main import app
-
+# Run FastAPI app with Uvicorn
 if __name__ == "__main__":
-    from gunicorn.app.wsgiapp import WSGIApplication
-    WSGIApplication("%(prog)s [OPTIONS] [APP_MODULE]").run()
+    uvicorn.run("main:app", host="0.0.0.0", port=8002, reload=False)
