@@ -2,6 +2,17 @@
 
 A dynamic AI-powered monitoring dashboard for bettergov.ph, inspired by Nagios and MRTG. Built with server-side rendering, FastAPI, and TimescaleDB for high-performance time series monitoring.
 
+## 🎯 **Current Status (October 2025)**
+
+- ✅ **Core Architecture**: FastAPI backend + TimescaleDB + geo-distributed agents
+- ✅ **D3.js Charts**: Professional time series visualization with proper filtering
+- ✅ **Server-side Rendering**: Fast, reliable HTML generation
+- ✅ **Geo-monitoring**: Agents in EU, SG, PH locations
+- ✅ **AJAX Auto-refresh**: Preserves UI state, updates data without page reloads
+- ✅ **UTC+8 Timezone**: Consistent time display across all agents
+- 🚧 **Time Series Filtering**: D3.js implementation with proper data filtering
+- 🚧 **EU Agent**: Monitoring agent deployment and data collection
+
 ## 🤖 Why Build Our Own?
 
 While powerful monitoring tools like Nagios, Zabbix, and Prometheus exist, we chose to build our own AI-native monitoring system for several reasons:
@@ -34,12 +45,14 @@ While powerful monitoring tools like Nagios, Zabbix, and Prometheus exist, we ch
 - **Real-time Monitoring**: Integrated scheduler with live data updates
 - **Server-side Rendering**: Fast, reliable HTML generation with Jinja2
 - **Geo-distributed Monitoring**: Agents in EU, SG, PH locations for global coverage
+- **D3.js Charts**: Professional time series visualization with proper filtering
 - **FastAPI Backend**: High-performance async API with Python
 - **TimescaleDB**: Optimized time series database for monitoring data
 - **Container Ready**: Docker and docker-compose setup
 - **Clean UI**: Tailwind CSS with minimal JavaScript and D3.js charts
 - **Nagios-inspired**: Status overviews, alerts, and service monitoring
 - **BusyBox Compatible**: Agents run on minimal Linux systems
+- **AJAX Auto-refresh**: Preserves UI state, updates data without page reloads
 
 ## 🛠 Tech Stack
 
@@ -48,13 +61,13 @@ While powerful monitoring tools like Nagios, Zabbix, and Prometheus exist, we ch
 - **Database**: TimescaleDB (PostgreSQL extension for time series)
 - **Geo-Agents**: Bash scripts compatible with BusyBox (minimal Linux)
 - **Deployment**: Docker + Docker Compose + automated deployment scripts
+- **Charts**: D3.js v7 for professional, responsive visualizations
 
 ## 📦 Quick Start
 
 ### Prerequisites
 
 - Docker and Docker Compose
-- Node.js 18+ (for development)
 - Python 3.11+ (for development)
 
 ### 1. Clone and Setup
@@ -188,13 +201,6 @@ pip install -r requirements.txt
 uvicorn main:app --reload
 ```
 
-#### Frontend Setup
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
 ## 🗄 Database Schema
 
 ### Metrics Table
@@ -308,9 +314,9 @@ response = requests.post("http://localhost:8000/api/metrics", json=metric)
 
 ### Adding New Charts
 
-1. Create a new D3.js chart component in `frontend/src/components/`
-2. Import and use in `Dashboard.vue`
-3. Update the Pinia store if needed
+1. Create a new D3.js chart function in `templates/dashboard.html`
+2. Add the chart to the modal or dashboard template
+3. Update the backend API if new data is needed
 
 ### Custom Metrics
 
@@ -325,6 +331,26 @@ response = requests.post("http://localhost:8000/api/metrics", json=metric)
 - Natural language queries
 - Automated threshold adjustments
 - Root cause analysis
+
+## 📝 Recent Updates (October 2025)
+
+### ✅ **Completed**
+- **D3.js Implementation**: Replaced custom SVG charts with professional D3.js visualizations
+- **AJAX Auto-refresh**: Fixed page reload issues by implementing AJAX data updates
+- **UTC+8 Timezone**: Consistent time display across all geo-agents
+- **Server-side Rendering**: Pure server-side HTML generation without client frameworks
+
+### 🚧 **In Progress**
+- **EU Agent Deployment**: Monitoring agent setup and data collection
+- **Time Series Filtering**: D3.js chart filtering by time range (24h/1h/5m)
+- **Performance Optimization**: Chart rendering and data processing improvements
+
+### 🔧 **Technical Improvements**
+- Switched from custom SVG to D3.js v7 for charts
+- Removed Vue.js frontend dependency
+- AJAX data updates preserve UI state
+- Consistent UTC+8 timezone display
+- Improved error handling and debugging
 
 ## 🚀 Deployment
 
@@ -359,10 +385,6 @@ docker-compose up -d --build
 ### Production Build
 
 ```bash
-# Build frontend (if using)
-cd frontend
-npm run build
-
 # Build and deploy with Docker
 docker-compose -f docker/docker-compose.yml up -d --build
 ```
