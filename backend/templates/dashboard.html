@@ -20,7 +20,7 @@
           <div class="text-3xl font-bold text-gray-600">{{ total_checks }}</div>
           <div class="text-sm text-gray-600">Total Checks</div>
         </div>
-        <div>
+        <div class="cursor-pointer hover:bg-purple-50 rounded-lg p-2 transition-colors" onclick="showDNSDiscoveries()">
           <div class="text-3xl font-bold text-purple-600">{{ other_dns|length }}</div>
           <div class="text-sm text-gray-600">DNS Discoveries</div>
         </div>
@@ -100,6 +100,34 @@
     </div>
 </div>
 
+<!-- DNS Discoveries Modal -->
+<div id="dns-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+  <div class="flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-screen overflow-hidden">
+      <div class="p-6 border-b">
+        <div class="flex justify-between items-center">
+          <h3 class="text-xl font-bold">DNS Discoveries - Inactive Subdomains</h3>
+          <button onclick="closeDNSModal()" class="text-gray-400 hover:text-gray-600">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="p-6">
+        <div class="mb-4">
+          <p class="text-gray-600">These subdomains were discovered via DNS enumeration but are currently inactive/down. They represent infrastructure that exists but is not actively monitored.</p>
+        </div>
+        <div id="dns-table" class="overflow-x-auto">
+          <div class="flex items-center justify-center h-32">
+            <div class="text-gray-500">Loading DNS discoveries...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 async function showTimeSeries(subdomain) {
     const modal = document.getElementById('timeseries-modal');
@@ -133,28 +161,114 @@ function renderTimeSeriesChart(checks, subdomain) {
     const chart = document.getElementById('timeseries-chart');
     chart.innerHTML = '';
 
-    // Simple line chart using response times
-    const times = checks.map(c => new Date(c.time)).reverse();
-    const responseTimes = checks.map(c => c.response_time_ms || 0).reverse();
+    // Group checks by location
+    const locationData = {};
+    checks.forEach(check => {
+        const location = check.location || 'EU';
+        if (!locationData[location]) {
+            locationData[location] = [];
+        }
+        locationData[location].push({
+            time: new Date(check.time),
+            responseTime: check.response_time_ms || 0,
+            status: check.status_code
+        });
+    });
 
     let html = '<div class="space-y-4">';
-    html += '<div class="text-sm text-gray-600">Response Time History (last 24 hours)</div>';
-    html += '<div class="h-64 bg-gray-50 rounded p-4">';
+    html += '<div class="text-sm text-gray-600">Response Time Comparison (last 24 hours)</div>';
 
-    // Simple bar chart
-    const maxTime = Math.max(...responseTimes);
-    const minTime = Math.min(...responseTimes.filter(t => t > 0)) || 0;
+    // Color mapping for locations
+    const locationColors = {
+        'EU': { bg: 'bg-blue-500', line: 'border-blue-500', text: 'text-blue-600' },
+        'SG': { bg: 'bg-green-500', line: 'border-green-500', text: 'text-green-600' },
+        'PH': { bg: 'bg-red-500', line: 'border-red-500', text: 'text-red-600' }
+    };
 
-    html += '<div class="flex items-end space-x-1 h-full">';
-    responseTimes.slice(-20).forEach((time, index) => {
-        const height = time > 0 ? ((time - minTime) / (maxTime - minTime || 1)) * 100 : 0;
-        const color = time > 1000 ? 'bg-red-400' : time > 500 ? 'bg-yellow-400' : 'bg-green-400';
-        html += `<div class="flex-1 ${color} rounded-t" style="height: ${Math.max(height, 5)}%" title="${time}ms"></div>`;
+    // Legend
+    html += '<div class="flex flex-wrap gap-6 mb-4">';
+    Object.keys(locationData).forEach((location, index) => {
+        const color = locationColors[location] || { bg: 'bg-gray-500', line: 'border-gray-500', text: 'text-gray-600' };
+        const type = index === 0 ? 'Bars' : 'Lines'; // First location as bars, others as lines
+        html += `<div class="flex items-center gap-2">
+            ${index === 0 ?
+                `<div class="w-3 h-3 rounded-sm ${color.bg}"></div>` :
+                `<div class="w-4 h-0.5 ${color.line} border-t-2"></div>`
+            }
+            <span class="text-sm ${color.text} font-medium">${location} (${type})</span>
+        </div>`;
     });
     html += '</div>';
 
-    html += '</div>';
-    html += '<div class="text-xs text-gray-500 text-center">Recent response times (lower is better)</div>';
+    html += '<div class="relative h-64 bg-gray-50 rounded p-4">';
+
+    // Find global min/max for consistent scaling
+    let allTimes = [];
+    Object.values(locationData).forEach(data => {
+        allTimes = allTimes.concat(data.map(d => d.responseTime));
+    });
+    const maxTime = Math.max(...allTimes);
+    const minTime = Math.min(...allTimes.filter(t => t > 0)) || 0;
+    const chartHeight = 200; // pixels
+
+    // Create SVG for combined chart
+    const locations = Object.keys(locationData);
+    const dataPoints = 15; // Show last 15 points
+
+    html += '<svg class="w-full h-full" viewBox="0 0 400 250">';
+
+    // Draw bars for first location (EU)
+    if (locations.length > 0) {
+        const primaryLocation = locations[0];
+        const primaryData = locationData[primaryLocation];
+        const primaryColor = locationColors[primaryLocation];
+
+        primaryData.slice(-dataPoints).forEach((point, index) => {
+            const x = (index / (dataPoints - 1)) * 350 + 25;
+            const height = point.responseTime > 0 ? ((point.responseTime - minTime) / (maxTime - minTime || 1)) * chartHeight : 0;
+            const y = 220 - height;
+            const barColor = point.responseTime > 1000 ? '#f87171' : point.responseTime > 500 ? '#fbbf24' : '#3b82f6';
+
+            html += `<rect x="${x - 3}" y="${y}" width="6" height="${height}" fill="${barColor}" class="transition-opacity hover:opacity-75" title="${point.responseTime}ms at ${point.time.toLocaleTimeString()} (${primaryLocation})"></rect>`;
+        });
+    }
+
+    // Draw lines for other locations
+    locations.slice(1).forEach((location, locationIndex) => {
+        const data = locationData[location];
+        const color = locationColors[location];
+        const lineColor = location === 'SG' ? '#10b981' : '#ef4444'; // Green for SG, Red for PH
+
+        // Draw line
+        let pathData = '';
+        data.slice(-dataPoints).forEach((point, index) => {
+            const x = (index / (dataPoints - 1)) * 350 + 25;
+            const y = 220 - (point.responseTime > 0 ? ((point.responseTime - minTime) / (maxTime - minTime || 1)) * chartHeight : 0);
+            pathData += `${index === 0 ? 'M' : 'L'} ${x} ${y} `;
+        });
+
+        if (pathData) {
+            html += `<path d="${pathData}" stroke="${lineColor}" stroke-width="2" fill="none" class="drop-shadow-sm"></path>`;
+
+            // Draw data points
+            data.slice(-dataPoints).forEach((point, index) => {
+                const x = (index / (dataPoints - 1)) * 350 + 25;
+                const y = 220 - (point.responseTime > 0 ? ((point.responseTime - minTime) / (maxTime - minTime || 1)) * chartHeight : 0);
+                html += `<circle cx="${x}" cy="${y}" r="3" fill="${lineColor}" class="hover:r-4 transition-all" title="${point.responseTime}ms at ${point.time.toLocaleTimeString()} (${location})"></circle>`;
+            });
+        }
+    });
+
+    // Add Y-axis labels
+    for (let i = 0; i <= 4; i++) {
+        const value = Math.round(minTime + (maxTime - minTime) * i / 4);
+        const y = 220 - (chartHeight * i / 4);
+        html += `<text x="15" y="${y + 4}" class="text-xs fill-gray-500" text-anchor="end">${value}ms</text>`;
+        html += `<line x1="20" y1="${y}" x2="25" y2="${y}" stroke="#e5e7eb" stroke-width="1"></line>`;
+    }
+
+    html += '</svg></div>';
+    html += '<div class="text-xs text-gray-500 text-center">Combined response time chart: bars for primary location, lines for comparison (lower is better)</div>';
     html += '</div>';
 
     chart.innerHTML = html;

@@ -606,6 +606,32 @@ async def receive_geo_report(report: dict):
         print(f"❌ Error saving geo report: {e}")
         return {"status": "error", "message": str(e)}
 
+@app.get("/api/dns-discoveries")
+async def get_dns_discoveries():
+    """Get all DNS discoveries (inactive subdomains)"""
+    pool = await get_db_pool()
+    rows = await pool.fetch("""
+        SELECT
+            subdomain,
+            discovered_at,
+            last_seen,
+            active
+        FROM monitoring.other_dns
+        ORDER BY last_seen DESC
+    """)
+
+    discoveries = []
+    for row in rows:
+        discoveries.append({
+            "subdomain": row["subdomain"],
+            "discovered_at": row["discovered_at"].isoformat() if row["discovered_at"] else None,
+            "last_seen": row["last_seen"].isoformat() if row["last_seen"] else None,
+            "active": row["active"],
+            "discovery_method": "DNS enumeration"
+        })
+
+    return {"discoveries": discoveries}
+
 @app.get("/api/agent-status")
 async def get_agent_status():
     """Get status of all geo-monitoring agents"""
