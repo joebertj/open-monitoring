@@ -105,7 +105,7 @@ async def shutdown_event():
 
 # Helper functions for dashboard data
 async def get_subdomains_with_stats():
-    """Get all project subdomains with their latest stats"""
+    """Get active project subdomains with their latest stats (only UP ones)"""
     pool = await get_db_pool()
     rows = await pool.fetch("""
         SELECT
@@ -135,7 +135,35 @@ async def get_subdomains_with_stats():
             WHERE uc.subdomain = s.subdomain
             AND uc.time >= NOW() - INTERVAL '24 hours'
         ) stats ON true
+        WHERE COALESCE(latest_check.up, false) = true
         ORDER BY s.subdomain
+    """)
+
+    return [dict(row) for row in rows]
+
+async def get_inactive_subdomains():
+    """Get inactive/down subdomains from the main monitoring table"""
+    pool = await get_db_pool()
+    rows = await pool.fetch("""
+        SELECT
+            s.subdomain,
+            s.active,
+            s.platform,
+            s.last_platform_check,
+            s.discovered_at,
+            s.last_seen,
+            COALESCE(latest_check.up, false) as is_up,
+            'Project Discovery' as discovery_method
+        FROM monitoring.subdomains s
+        LEFT JOIN LATERAL (
+            SELECT up
+            FROM monitoring.uptime_checks uc
+            WHERE uc.subdomain = s.subdomain
+            ORDER BY uc.time DESC
+            LIMIT 1
+        ) latest_check ON true
+        WHERE COALESCE(latest_check.up, false) = false
+        ORDER BY s.last_seen DESC
     """)
 
     return [dict(row) for row in rows]
@@ -150,7 +178,8 @@ async def get_other_dns():
             platform,
             last_platform_check,
             discovered_at,
-            last_seen
+            last_seen,
+            'DNS Enumeration' as discovery_method
         FROM monitoring.other_dns
         ORDER BY last_seen DESC
         LIMIT 20
@@ -171,8 +200,12 @@ async def dashboard(request: Request):
     try:
         # Get data
         subdomains_data = await get_subdomains_with_stats()
+        inactive_subdomains = await get_inactive_subdomains()
         other_dns_data = await get_other_dns()
         alerts_data = await get_recent_alerts()
+
+        # Combine inactive subdomains and other DNS for discoveries count
+        dns_discoveries_count = len(inactive_subdomains) + len(other_dns_data)
 
         # Calculate stats
         warning_alerts = [a for a in alerts_data if a.get('severity') == 'warning']
@@ -188,7 +221,9 @@ async def dashboard(request: Request):
         return templates.TemplateResponse("dashboard.html", {
             "request": request,
             "subdomains": subdomains_data,
+            "inactive_subdomains": inactive_subdomains,
             "other_dns": other_dns_data,
+            "dns_discoveries_count": dns_discoveries_count,
             "alerts": alerts_data,
             "warning_alerts": warning_alerts,
             "critical_alerts": critical_alerts,
@@ -198,6 +233,9 @@ async def dashboard(request: Request):
         return templates.TemplateResponse("dashboard.html", {
             "request": request,
             "subdomains": [],
+            "inactive_subdomains": [],
+            "other_dns": [],
+            "dns_discoveries_count": 0,
             "alerts": [],
             "warning_alerts": [],
             "critical_alerts": [],
@@ -627,29 +665,28 @@ async def receive_geo_report(report: dict):
 
 @app.get("/api/dns-discoveries")
 async def get_dns_discoveries():
-    """Get all DNS discoveries (inactive subdomains)"""
-    pool = await get_db_pool()
-    rows = await pool.fetch("""
-        SELECT
-            subdomain,
-            discovered_at,
-            last_seen,
-            active
-        FROM monitoring.other_dns
-        ORDER BY last_seen DESC
-    """)
+    """Get all DNS discoveries (inactive subdomains and other DNS)"""
+    inactive_subdomains = await get_inactive_subdomains()
+    other_dns = await get_other_dns()
 
-    discoveries = []
-    for row in rows:
-        discoveries.append({
-            "subdomain": row["subdomain"],
-            "discovered_at": row["discovered_at"].isoformat() if row["discovered_at"] else None,
-            "last_seen": row["last_seen"].isoformat() if row["last_seen"] else None,
-            "active": row["active"],
-            "discovery_method": "DNS enumeration"
+    # Combine both lists
+    discoveries = inactive_subdomains + other_dns
+
+    # Sort by last_seen descending
+    discoveries.sort(key=lambda x: x.get('last_seen', '1970-01-01'), reverse=True)
+
+    # Format for API response
+    formatted_discoveries = []
+    for discovery in discoveries:
+        formatted_discoveries.append({
+            "subdomain": discovery["subdomain"],
+            "discovered_at": discovery["discovered_at"].isoformat() if discovery.get("discovered_at") else None,
+            "last_seen": discovery["last_seen"].isoformat() if discovery.get("last_seen") else None,
+            "active": discovery.get("active", False),
+            "discovery_method": discovery.get("discovery_method", "Unknown")
         })
 
-    return {"discoveries": discoveries}
+    return {"discoveries": formatted_discoveries}
 
 @app.get("/api/agent-status")
 async def get_agent_status():
