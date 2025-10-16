@@ -34,10 +34,62 @@
     </main>
 
     <script>
-        // Auto-refresh every 30 seconds
-        setTimeout(function() {
-            location.reload();
+        // Auto-refresh dashboard data every 30 seconds without full page reload
+        setInterval(async function() {
+            try {
+                // Only refresh if we're on the dashboard page and no modal is open
+                const timeseriesModal = document.getElementById('timeseries-modal');
+                const dnsModal = document.getElementById('dns-modal');
+                const isTimeseriesModalHidden = !timeseriesModal || timeseriesModal.classList.contains('hidden');
+                const isDnsModalHidden = !dnsModal || dnsModal.classList.contains('hidden');
+
+                if (window.location.pathname === '/' && isTimeseriesModalHidden && isDnsModalHidden) {
+
+                    const response = await fetch('/api/subdomains');
+                    if (response.ok) {
+                        const data = await response.json();
+                        // Update subdomain stats without full page reload
+                        updateDashboardData(data.subdomains);
+                    }
+                }
+            } catch (error) {
+                console.error('Auto-refresh failed:', error);
+            }
         }, 30000);
+
+        function updateDashboardData(subdomains) {
+            // Update each subdomain card with fresh data
+            subdomains.forEach(subdomain => {
+                const card = document.querySelector(`[onclick*="${subdomain.subdomain}"]`);
+                if (card) {
+                    // Update status
+                    const statusSpan = card.querySelector('.px-2.py-1.rounded-full');
+                    if (statusSpan) {
+                        statusSpan.className = `px-2 py-1 rounded-full text-xs font-medium ${
+                            subdomain.uptime_percentage > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`;
+                        statusSpan.textContent = subdomain.uptime_percentage > 0 ? 'UP' : 'DOWN';
+                    }
+
+                    // Update uptime
+                    const uptimeSpan = card.querySelector('[data-uptime]');
+                    if (uptimeSpan) {
+                        uptimeSpan.textContent = `${subdomain.uptime_percentage.toFixed(1)}%`;
+                    }
+
+                    // Update last check time
+                    const lastCheckSpan = card.querySelector('.font-medium.text-xs');
+                    if (lastCheckSpan && subdomain.last_check) {
+                        const date = new Date(subdomain.last_check);
+                        lastCheckSpan.textContent = date.toLocaleTimeString('en-US', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            timeZone: 'UTC'
+                        }) + ' UTC';
+                    }
+                }
+            });
+        }
     </script>
 </body>
 </html>

@@ -46,7 +46,7 @@
           </div>
           <div class="flex justify-between">
             <span class="text-gray-600">Uptime (24h):</span>
-            <span class="font-medium">{{ "%.1f"|format(subdomain.uptime_percentage) }}%</span>
+            <span class="font-medium" data-uptime>{{ "%.1f"|format(subdomain.uptime_percentage) }}%</span>
           </div>
           <div class="flex justify-between">
             <span class="text-gray-600">Response:</span>
@@ -62,7 +62,7 @@
             <span class="text-gray-600">Last Check:</span>
             <span class="font-medium text-xs">
               {% if subdomain.last_check %}
-                {{ subdomain.last_check.astimezone().strftime('%H:%M UTC') }}
+                {{ subdomain.last_check.strftime('%H:%M UTC') }}
               {% else %}
                 Never
               {% endif %}
