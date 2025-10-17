@@ -541,12 +541,14 @@ def generate_agent_token(location: str, salt: str = None) -> str:
 async def regenerate_agent_tokens():
     """Regenerate tokens for all known agents (called on scheduler start)"""
     global AGENT_TOKENS
+    
+    print("🔐 ========== REGENERATING AGENT TOKENS ==========")
+    logger.info("🔐 Regenerating agent tokens...")
+    
     pool = await get_db_pool()
     
     AGENT_TOKENS = {}
     known_locations = ['EU', 'PH', 'SG']
-    
-    logger.info("🔐 Regenerating agent tokens...")
     
     for location in known_locations:
         token, salt = generate_agent_token(location)
