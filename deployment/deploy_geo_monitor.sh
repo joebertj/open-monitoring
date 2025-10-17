@@ -21,110 +21,6 @@ detect_location() {
     fi
 }
 
-# Generate ultra-minimal monitoring agent script (sh-compatible)
-    generate_monitor_script() {
-        cat << 'EOF'
-#!/bin/sh
-# Ultra-Minimal Geo-Monitoring Agent
-# Compatible with BusyBox ash/sh, maximum compatibility
-
-# Configuration
-LOCATION="${LOCATION:-UNKNOWN}"
-CENTRAL_API="http://10.27.79.2:8002"  # API port
-INTERVAL=300
-
-# Auto-detect location if not explicitly set
-if [ "$LOCATION" = "UNKNOWN" ]; then
-    IP=$(hostname -I 2>/dev/null | awk '{print $1}' 2>/dev/null || echo "unknown")
-    HOSTNAME=$(hostname 2>/dev/null || echo "unknown")
-
-    if echo "$IP" | grep -q "192\.168\.15\." || echo "$HOSTNAME" | grep -qi "ph"; then
-        LOCATION="PH"
-    elif echo "$IP" | grep -q "10\.27\.79\." || echo "$HOSTNAME" | grep -qi "sg"; then
-        LOCATION="SG"
-    else
-        LOCATION="EU"
-    fi
-fi
-
-echo "Agent: $LOCATION started"
-
-# Check single subdomain
-check_subdomain() {
-    subdomain="$1"
-    check_path="${2:-/}"
-    start_time=$(date +%s 2>/dev/null || echo "0")
-
-    # Try HTTPS first, fallback to HTTP
-    response=$(curl -s -w "%{http_code}|%{time_total}" --max-time 10 "https://${subdomain}${check_path}" 2>/dev/null)
-    http_code=$(echo "$response" | cut -d'|' -f1)
-    response_time=$(echo "$response" | cut -d'|' -f2 | awk '{printf "%.0f", $1 * 1000}' 2>/dev/null || echo "0")
-
-    if [ "$http_code" = "000" ] || [ -z "$http_code" ]; then
-        response=$(curl -s -w "%{http_code}|%{time_total}" --max-time 10 "http://${subdomain}${check_path}" 2>/dev/null)
-        http_code=$(echo "$response" | cut -d'|' -f1)
-        response_time=$(echo "$response" | cut -d'|' -f2 | awk '{printf "%.0f", $1 * 1000}' 2>/dev/null || echo "0")
-    fi
-
-    up="false"
-    if [ "$http_code" -ge 200 ] 2>/dev/null && [ "$http_code" -lt 400 ] 2>/dev/null; then
-        up="true"
-    fi
-
-    echo "{\"subdomain\":\"$subdomain\",\"status_code\":${http_code:-null},\"response_time_ms\":${response_time:-0},\"up\":$up,\"location\":\"$LOCATION\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\"}"
-}
-
-# Get subdomains from API (returns JSON with subdomain and check_path)
-get_subdomains() {
-    response=$(curl -s --max-time 30 "$CENTRAL_API/api/subdomains" 2>/dev/null)
-    if [ -z "$response" ]; then
-        response=$(curl -s --max-time 30 "http://10.27.79.2:8002/api/subdomains" 2>/dev/null)
-    fi
-    echo "$response"
-}
-
-# Report results
-report_results() {
-    results="$1"
-    payload="{\"results\":[$results],\"location\":\"$LOCATION\"}"
-
-    response=$(curl -s -X POST -H "Content-Type: application/json" -d "$payload" --max-time 30 "$CENTRAL_API/api/geo-report" 2>/dev/null)
-        if [ -z "$response" ]; then
-            curl -s -X POST -H "Content-Type: application/json" -d "$payload" --max-time 30 "http://10.27.79.2:8002/api/geo-report" >/dev/null 2>&1
-        fi
-}
-
-# Main loop
-while true; do
-    SUBDOMAIN_DATA=$(get_subdomains)
-    if [ -n "$SUBDOMAIN_DATA" ]; then
-        # Parse JSON to extract subdomain and check_path pairs
-        # Use grep and sed to extract each subdomain entry with its check_path
-        SUBDOMAINS=$(echo "$SUBDOMAIN_DATA" | grep -o '"subdomain":"[^"]*"' | cut -d'"' -f4)
-        
-        RESULTS=""
-        for subdomain in $SUBDOMAINS; do
-            # Extract check_path for this specific subdomain from the JSON
-            check_path=$(echo "$SUBDOMAIN_DATA" | grep -A1 "\"subdomain\":\"$subdomain\"" | grep '"check_path"' | cut -d'"' -f4)
-            # Default to / if check_path is empty
-            check_path="${check_path:-/}"
-            
-            if [ -n "$RESULTS" ]; then
-                RESULTS="$RESULTS,"
-            fi
-            result=$(check_subdomain "$subdomain" "$check_path")
-            RESULTS="$RESULTS$result"
-        done
-        if [ -n "$RESULTS" ]; then
-            report_results "$RESULTS"
-        fi
-    fi
-    sleep "$INTERVAL"
-done
-EOF
-    }
-
-
 # Get agent token from central API
 get_agent_token() {
     local location=$1
@@ -162,11 +58,13 @@ deploy_to_server() {
         sleep 1
     "
 
-    # Generate and deploy the ultra-minimal script
-    generate_monitor_script | ssh -i "$key_path" "$server" "cat > geo_monitor.sh && chmod +x geo_monitor.sh"
+    # Deploy the geo_monitor.sh script from deployment directory
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    scp -i "$key_path" "$SCRIPT_DIR/geo_monitor.sh" "$server:~/geo_monitor.sh"
+    ssh -i "$key_path" "$server" "chmod +x ~/geo_monitor.sh"
 
     # Start the agent with location and token
-    ssh -i "$key_path" "$server" "export LOCATION=\"$location\" && export AGENT_TOKEN=\"$agent_token\" && ./geo_monitor.sh > monitor.log 2>&1 &"
+    ssh -i "$key_path" "$server" "export LOCATION=\"$location\" && export AGENT_TOKEN=\"$agent_token\" && ~/geo_monitor.sh > ~/monitor.log 2>&1 &"
 
     echo "✅ Deployed authenticated monitoring agent to $server"
 }
