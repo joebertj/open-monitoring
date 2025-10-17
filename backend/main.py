@@ -113,7 +113,7 @@ async def shutdown_event():
 
 # Helper functions for dashboard data
 async def get_subdomains_with_stats():
-    """Get active project subdomains with their latest stats (only UP ones)"""
+    """Get active project subdomains with their latest stats"""
     pool = await get_db_pool()
     rows = await pool.fetch("""
         SELECT
@@ -123,7 +123,12 @@ async def get_subdomains_with_stats():
             s.last_platform_check,
             COALESCE(latest_check.status_code, 0) as status_code,
             COALESCE(latest_check.response_time_ms, 0) as response_time_ms,
-            COALESCE(latest_check.up, false) as up,
+            CASE
+                WHEN latest_check.up IS NULL THEN 'unknown'
+                WHEN latest_check.up = true THEN 'up'
+                ELSE 'down'
+            END as status,
+            latest_check.up as up,
             COALESCE(latest_check.time, s.last_seen) as last_check,
             COALESCE(stats.uptime_percentage, 0) as uptime_percentage,
             COALESCE(stats.check_count, 0) as check_count
@@ -143,7 +148,7 @@ async def get_subdomains_with_stats():
             WHERE uc.subdomain = s.subdomain
             AND uc.time >= NOW() - INTERVAL '24 hours'
         ) stats ON true
-        WHERE COALESCE(latest_check.up, false) = true
+        WHERE s.active = true
         ORDER BY s.subdomain
     """)
 
@@ -225,12 +230,43 @@ async def dashboard(request: Request):
             if subdomain.get('last_check'):
                 subdomain['last_check_utc8'] = subdomain['last_check'] + timedelta(hours=8)
 
-        # Get total agents (unique monitoring locations)
+        # Get agent status for known locations (EU, PH, SG)
         pool = await get_db_pool()
         async with pool.acquire() as conn:
-            # Count distinct locations, defaulting to 3 known agents if no data exists
-            total_agents_result = await conn.fetchval("SELECT COUNT(DISTINCT COALESCE(location, 'EU')) FROM monitoring.uptime_checks")
-            total_agents = max(total_agents_result or 0, 3)  # At least 3 agents (EU, SG, PH)
+            # Get agent heartbeats for known locations
+            agent_rows = await conn.fetch("""
+                SELECT
+                    location,
+                    last_seen,
+                    status,
+                    EXTRACT(EPOCH FROM (NOW() - last_seen)) / 60 as minutes_since_last_seen
+                FROM monitoring.agent_heartbeats
+                WHERE location IN ('EU', 'PH', 'SG')
+                ORDER BY last_seen DESC
+            """)
+
+            # Calculate agent stats
+            agents = []
+            up_agents = 0
+            down_agents = 0
+
+            for row in agent_rows:
+                is_online = row["minutes_since_last_seen"] < 10  # Consider online if seen within 10 minutes
+                status = "online" if is_online else "offline"
+
+                if is_online:
+                    up_agents += 1
+                else:
+                    down_agents += 1
+
+                agents.append({
+                    "location": row["location"],
+                    "last_seen": row["last_seen"].isoformat(),
+                    "status": status,
+                    "minutes_since_last_seen": round(row["minutes_since_last_seen"], 1)
+                })
+
+            total_agents = len(agents)  # Total known agents
 
         return templates.TemplateResponse("dashboard.html", {
             "request": request,
@@ -241,7 +277,10 @@ async def dashboard(request: Request):
             "alerts": alerts_data,
             "warning_alerts": warning_alerts,
             "critical_alerts": critical_alerts,
-            "total_agents": total_agents
+            "total_agents": total_agents,
+            "up_agents": up_agents,
+            "down_agents": down_agents,
+            "agents": agents
         })
     except Exception as e:
         return templates.TemplateResponse("dashboard.html", {
@@ -253,7 +292,10 @@ async def dashboard(request: Request):
             "alerts": [],
             "warning_alerts": [],
             "critical_alerts": [],
-            "total_agents": 0,
+            "total_agents": 3,  # Default to 3 known agents
+            "up_agents": 0,
+            "down_agents": 0,
+            "agents": [],
             "error": str(e)
         })
 
@@ -638,7 +680,12 @@ async def receive_geo_report(report: dict):
     """Receive monitoring reports from geo-distributed agents"""
     pool = await get_db_pool()
     results = report.get("results", [])
-    location = report.get("location", "unknown")
+    location = report.get("location", "UNKNOWN").upper()
+
+    # Only accept reports from known agents (EU, PH, SG)
+    if location not in ['EU', 'PH', 'SG']:
+        print(f"🚫 Rejected {len(results)} geo-reports from unauthorized location: {location}")
+        return {"status": "rejected", "message": f"Unauthorized location: {location}"}
 
     print(f"📥 Received {len(results)} geo-reports from {location}")
 

@@ -129,7 +129,7 @@
 </div>
 
 <script>
-// Global variable to store current time range
+// Global variable to store current time range (in hours)
 let currentTimeRange = 24;
 let currentSubdomain = '';
 
@@ -142,11 +142,6 @@ async function showTimeSeries(subdomain) {
     currentSubdomain = subdomain;
     title.textContent = `Time Series - ${subdomain}`;
     chart.innerHTML = `
-        <div class="mb-4 flex justify-center space-x-2">
-            <button onclick="changeTimeRange(24)" class="px-3 py-1 text-sm rounded ${currentTimeRange === 24 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}">24h</button>
-            <button onclick="changeTimeRange(1)" class="px-3 py-1 text-sm rounded ${currentTimeRange === 1 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}">1h</button>
-            <button onclick="changeTimeRange(0.083)" class="px-3 py-1 text-sm rounded ${currentTimeRange === 0.083 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}">5m</button>
-        </div>
         <div class="flex items-center justify-center h-full">
             <div class="text-gray-500">Loading time series data...</div>
         </div>
@@ -162,11 +157,6 @@ async function showTimeSeries(subdomain) {
         } else {
             const chartContainer = document.getElementById('timeseries-chart');
             chartContainer.innerHTML = `
-                <div class="mb-4 flex justify-center space-x-2">
-                    <button onclick="changeTimeRange(24)" class="px-3 py-1 text-sm rounded ${currentTimeRange === 24 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}">24h</button>
-                    <button onclick="changeTimeRange(1)" class="px-3 py-1 text-sm rounded ${currentTimeRange === 1 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}">1h</button>
-                    <button onclick="changeTimeRange(0.083)" class="px-3 py-1 text-sm rounded ${currentTimeRange === 0.083 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}">5m</button>
-                </div>
                 <div class="flex items-center justify-center h-full">
                     <div class="text-gray-500">No time series data available</div>
                 </div>
@@ -175,11 +165,6 @@ async function showTimeSeries(subdomain) {
     } catch (error) {
         const chartContainer = document.getElementById('timeseries-chart');
         chartContainer.innerHTML = `
-            <div class="mb-4 flex justify-center space-x-2">
-                <button onclick="changeTimeRange(24)" class="px-3 py-1 text-sm rounded ${currentTimeRange === 24 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}">24h</button>
-                <button onclick="changeTimeRange(1)" class="px-3 py-1 text-sm rounded ${currentTimeRange === 1 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}">1h</button>
-                <button onclick="changeTimeRange(0.083)" class="px-3 py-1 text-sm rounded ${currentTimeRange === 0.083 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}">5m</button>
-            </div>
             <div class="flex items-center justify-center h-full">
                 <div class="text-red-500">Error loading data</div>
             </div>
@@ -204,8 +189,8 @@ function closeTimeSeries() {
 
 function renderTimeSeriesChart(checks, subdomain, hours = 24) {
     console.log('renderTimeSeriesChart called with hours:', hours, 'for subdomain:', subdomain);
-    const chart = document.getElementById('timeseries-chart');
-    chart.innerHTML = '';
+    const chartContainer = document.getElementById('timeseries-chart');
+    chartContainer.innerHTML = '';
 
     // Filter checks by time range
     const now = new Date();
@@ -238,109 +223,135 @@ function renderTimeSeriesChart(checks, subdomain, hours = 24) {
         return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
     });
 
-    let html = '<div class="space-y-4">';
-    const timeLabel = hours === 24 ? '24 hours' : hours === 1 ? '1 hour' : '5 minutes';
-    html += `<div class="text-sm text-gray-600">Response Time Comparison (last ${timeLabel})</div>`;
-
-    // Color mapping for locations
-    const locationColors = {
-        'EU': { bg: 'bg-blue-500', line: 'border-blue-500', text: 'text-blue-600' },
-        'SG': { bg: 'bg-green-500', line: 'border-green-500', text: 'text-green-600' },
-        'PH': { bg: 'bg-red-500', line: 'border-red-500', text: 'text-red-600' }
-    };
-
-    // Legend
-    html += '<div class="flex flex-wrap gap-6 mb-4">';
-    sortedLocations.forEach((location, index) => {
-        const color = locationColors[location] || { bg: 'bg-gray-500', line: 'border-gray-500', text: 'text-gray-600' };
-        const type = index === 0 ? 'Bars' : 'Lines'; // First location as bars, others as lines
-        html += `<div class="flex items-center gap-2">
-            ${index === 0 ?
-                `<div class="w-3 h-3 rounded-sm ${color.bg}"></div>` :
-                `<div class="w-4 h-0.5 ${color.line} border-t-2"></div>`
-            }
-            <span class="text-sm ${color.text} font-medium">${location} (${type})</span>
-        </div>`;
-    });
-    html += '</div>';
-
-    html += '<div class="relative h-64 bg-gray-50 rounded p-4">';
-
-    // Find global min/max for consistent scaling
-    let allTimes = [];
-    Object.values(locationData).forEach(data => {
-        allTimes = allTimes.concat(data.map(d => d.responseTime));
-    });
-    const maxTime = Math.max(...allTimes);
-    const minTime = Math.min(...allTimes.filter(t => t > 0)) || 0;
-    const chartHeight = 200; // pixels
-
-    // Create SVG for combined chart
+    // Prepare data for D3.js
     const dataPoints = 15; // Show last 15 points
+    const chartData = [];
 
-    html += '<svg class="w-full h-full" viewBox="0 0 400 250">';
-
-    // Draw bars for first location (SG)
-    if (sortedLocations.length > 0) {
-        const primaryLocation = sortedLocations[0];
-        const primaryData = locationData[primaryLocation];
-        const primaryColor = locationColors[primaryLocation];
-
-        primaryData.slice(-dataPoints).forEach((point, index) => {
-            const x = (index / (dataPoints - 1)) * 350 + 25;
-            const height = point.responseTime > 0 ? ((point.responseTime - minTime) / (maxTime - minTime || 1)) * chartHeight : 0;
-            const y = 220 - height;
-            const barColor = point.responseTime > 1000 ? '#f87171' : point.responseTime > 500 ? '#fbbf24' : '#3b82f6';
-
-            html += `<rect x="${x - 3}" y="${y}" width="6" height="${height}" fill="${barColor}" class="transition-opacity hover:opacity-75" title="${point.responseTime}ms at ${point.time.toLocaleTimeString()} (${primaryLocation})"></rect>`;
-        });
-    }
-
-    // Draw lines for other locations
-    sortedLocations.slice(1).forEach((location, locationIndex) => {
+    sortedLocations.forEach((location, index) => {
         const data = locationData[location];
-        const color = locationColors[location];
-        // Map location colors to hex values for SVG
-        const locationHexColors = {
+        const colorMap = {
             'EU': '#3b82f6', // blue
             'SG': '#10b981', // green
             'PH': '#ef4444'  // red
         };
-        const lineColor = locationHexColors[location] || '#6b7280'; // gray fallback
+        const color = colorMap[location] || '#6b7280';
 
-        // Draw line
-        let pathData = '';
-        data.slice(-dataPoints).forEach((point, index) => {
-            const x = (index / (dataPoints - 1)) * 350 + 25;
-            const y = 220 - (point.responseTime > 0 ? ((point.responseTime - minTime) / (maxTime - minTime || 1)) * chartHeight : 0);
-            pathData += `${index === 0 ? 'M' : 'L'} ${x} ${y} `;
-        });
-
-        if (pathData) {
-            html += `<path d="${pathData}" stroke="${lineColor}" stroke-width="2" fill="none" class="drop-shadow-sm"></path>`;
-
-            // Draw data points
-            data.slice(-dataPoints).forEach((point, index) => {
-                const x = (index / (dataPoints - 1)) * 350 + 25;
-                const y = 220 - (point.responseTime > 0 ? ((point.responseTime - minTime) / (maxTime - minTime || 1)) * chartHeight : 0);
-                html += `<circle cx="${x}" cy="${y}" r="3" fill="${lineColor}" class="hover:r-4 transition-all" title="${point.responseTime}ms at ${point.time.toLocaleTimeString()} (${location})"></circle>`;
+        data.slice(-dataPoints).forEach((point, dataIndex) => {
+            chartData.push({
+                location: location,
+                time: point.time,
+                responseTime: point.responseTime,
+                color: color,
+                type: index === 0 ? 'bar' : 'line'
             });
-        }
+        });
     });
 
-    // Add Y-axis labels
-    for (let i = 0; i <= 4; i++) {
-        const value = Math.round(minTime + (maxTime - minTime) * i / 4);
-        const y = 220 - (chartHeight * i / 4);
-        html += `<text x="15" y="${y + 4}" class="text-xs fill-gray-500" text-anchor="end">${value}ms</text>`;
-        html += `<line x1="20" y1="${y}" x2="25" y2="${y}" stroke="#e5e7eb" stroke-width="1"></line>`;
-    }
+    // Create D3.js chart
+    const width = 800;
+    const height = 300;
+    const margin = { top: 20, right: 20, bottom: 40, left: 60 };
 
-    html += '</svg></div>';
-    html += '<div class="text-xs text-gray-500 text-center">Combined response time chart: bars for primary location, lines for comparison (lower is better)</div>';
-    html += '</div>';
+    const svg = d3.select('#timeseries-chart')
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height)
+        .attr('viewBox', `0 0 ${width} ${height}`);
 
-    chart.innerHTML = html;
+    // Time scale
+    const timeExtent = d3.extent(filteredChecks, d => new Date(d.time));
+    const xScale = d3.scaleTime()
+        .domain(timeExtent)
+        .range([margin.left, width - margin.right]);
+
+    // Response time scale
+    const responseExtent = d3.extent(filteredChecks, d => d.response_time_ms || 0);
+    const yScale = d3.scaleLinear()
+        .domain([0, Math.max(responseExtent[1], 1000)])
+        .range([height - margin.bottom, margin.top]);
+
+    // Color scale
+    const colorScale = d3.scaleOrdinal()
+        .domain(sortedLocations)
+        .range(['#10b981', '#3b82f6', '#ef4444']);
+
+    // Add axes
+    svg.append('g')
+        .attr('transform', `translate(0,${height - margin.bottom})`)
+        .call(d3.axisBottom(xScale).ticks(5).tickFormat(d3.timeFormat('%H:%M')));
+
+    svg.append('g')
+        .attr('transform', `translate(${margin.left},0)`)
+        .call(d3.axisLeft(yScale).tickFormat(d => `${d}ms`));
+
+    // Add chart title
+    const timeLabel = hours === 24 ? '24 hours' : hours === 1 ? '1 hour' : '5 minutes';
+    svg.append('text')
+        .attr('x', width / 2)
+        .attr('y', margin.top / 2)
+        .attr('text-anchor', 'middle')
+        .attr('class', 'text-sm font-medium text-gray-600')
+        .text(`Response Time Comparison (last ${timeLabel})`);
+
+    // Group data by location for lines
+    const locationGroups = d3.groups(chartData, d => d.location);
+
+    locationGroups.forEach(([location, data]) => {
+        // Create line for this location
+        const line = d3.line()
+            .x(d => xScale(d.time))
+            .y(d => yScale(d.responseTime))
+            .curve(d3.curveMonotoneX);
+
+        // Add the line path
+        svg.append('path')
+            .datum(data)
+            .attr('fill', 'none')
+            .attr('stroke', colorScale(location))
+            .attr('stroke-width', 2)
+            .attr('d', line);
+
+        // Add dots for data points
+        svg.selectAll(`.dot-${location}`)
+            .data(data)
+            .enter()
+            .append('circle')
+            .attr('class', `dot-${location}`)
+            .attr('cx', d => xScale(d.time))
+            .attr('cy', d => yScale(d.responseTime))
+            .attr('r', 3)
+            .attr('fill', d => d.responseTime > 1000 ? '#f87171' : d.responseTime > 500 ? '#fbbf24' : colorScale(location))
+            .append('title')
+            .text(d => `${d.responseTime}ms at ${d.time.toLocaleTimeString()} (${location})`);
+    });
+
+    // Add legend
+    const legend = svg.selectAll('.legend')
+        .data(sortedLocations)
+        .enter()
+        .append('g')
+        .attr('class', 'legend')
+        .attr('transform', (d, i) => `translate(${width - margin.right - 100},${margin.top + i * 20})`);
+
+    legend.append('line')
+        .attr('x1', 0)
+        .attr('x2', 20)
+        .attr('y1', 10)
+        .attr('y2', 10)
+        .attr('stroke', d => colorScale(d))
+        .attr('stroke-width', 2);
+
+    legend.append('circle')
+        .attr('cx', 10)
+        .attr('cy', 10)
+        .attr('r', 3)
+        .attr('fill', d => colorScale(d));
+
+    legend.append('text')
+        .attr('x', 25)
+        .attr('y', 15)
+        .attr('class', 'text-xs')
+        .text(d => `${d} (Lines)`);
 }
 
 // Close modal when clicking outside
