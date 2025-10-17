@@ -13,12 +13,17 @@ from apscheduler.triggers.interval import IntervalTrigger
 from typing import Dict, Any
 import os
 import logging
+import hashlib
+import secrets
 
 from uptime_checker import UptimeChecker
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Global agent tokens (regenerated on scheduler start)
+AGENT_TOKENS = {}
 
 app = FastAPI(title="BetterGovPH Open Monitoring API")
 
@@ -239,6 +244,7 @@ async def dashboard(request: Request):
                     location,
                     last_seen,
                     status,
+                    out_of_sync,
                     EXTRACT(EPOCH FROM (NOW() - last_seen)) / 60 as minutes_since_last_seen
                 FROM monitoring.agent_heartbeats
                 WHERE location IN ('EU', 'PH', 'SG')
@@ -249,20 +255,25 @@ async def dashboard(request: Request):
             agents = []
             up_agents = 0
             down_agents = 0
+            outdated_agents = 0
 
             for row in agent_rows:
-                is_online = row["minutes_since_last_seen"] < 10  # Consider online if seen within 10 minutes
-                status = "online" if is_online else "offline"
-
-                if is_online:
+                # Determine agent status
+                if row["status"] == 'outdated' or row["out_of_sync"]:
+                    status = "outdated"
+                    outdated_agents += 1
+                elif row["minutes_since_last_seen"] < 10:
+                    status = "online"
                     up_agents += 1
                 else:
+                    status = "offline"
                     down_agents += 1
 
                 agents.append({
                     "location": row["location"],
                     "last_seen": row["last_seen"].isoformat(),
                     "status": status,
+                    "out_of_sync": row["out_of_sync"],
                     "minutes_since_last_seen": round(row["minutes_since_last_seen"], 1)
                 })
 
@@ -280,6 +291,7 @@ async def dashboard(request: Request):
             "total_agents": total_agents,
             "up_agents": up_agents,
             "down_agents": down_agents,
+            "outdated_agents": outdated_agents,
             "agents": agents
         })
     except Exception as e:
@@ -295,6 +307,7 @@ async def dashboard(request: Request):
             "total_agents": 3,  # Default to 3 known agents
             "up_agents": 0,
             "down_agents": 0,
+            "outdated_agents": 0,
             "agents": [],
             "error": str(e)
         })
@@ -512,10 +525,54 @@ async def insert_metric(metric: Dict[str, Any]):
 
     return {"status": "inserted"}
 
+def generate_agent_token(location: str, salt: str = None) -> str:
+    """Generate SHA-256 token for agent authentication"""
+    if salt is None:
+        salt = secrets.token_hex(16)  # 32-char hex string
+    
+    # Combine location, salt, and current datetime
+    timestamp = datetime.now(timezone.utc).isoformat()
+    data = f"{location}:{salt}:{timestamp}"
+    
+    # Generate SHA-256 hash
+    token = hashlib.sha256(data.encode()).hexdigest()
+    return token, salt
+
+async def regenerate_agent_tokens():
+    """Regenerate tokens for all known agents (called on scheduler start)"""
+    global AGENT_TOKENS
+    pool = await get_db_pool()
+    
+    AGENT_TOKENS = {}
+    known_locations = ['EU', 'PH', 'SG']
+    
+    logger.info("🔐 Regenerating agent tokens...")
+    
+    for location in known_locations:
+        token, salt = generate_agent_token(location)
+        AGENT_TOKENS[location] = {'token': token, 'salt': salt}
+        
+        # Store expected token in database
+        await pool.execute("""
+            INSERT INTO monitoring.agent_heartbeats (location, expected_token, token_generated_at, status)
+            VALUES ($1, $2, NOW(), 'active')
+            ON CONFLICT (location) DO UPDATE SET
+                expected_token = $2,
+                token_generated_at = NOW(),
+                out_of_sync = FALSE
+        """, location, token)
+        
+        logger.info(f"🔑 Generated token for {location}: {token[:16]}...")
+    
+    return AGENT_TOKENS
+
 async def start_scheduler_internal(interval_minutes: int = 1):
     """Internal function to start the scheduler (used by auto-start)"""
     if scheduler.running:
         return
+
+    # Regenerate agent tokens on scheduler start
+    await regenerate_agent_tokens()
 
     # Clear any existing jobs
     scheduler.remove_all_jobs()
@@ -638,13 +695,15 @@ async def get_subdomains(request: Request):
             s.id, s.domain, s.subdomain, s.discovered_at,
             s.last_seen, s.active, s.platform, s.last_platform_check,
             COALESCE(s.check_path, '/') as check_path,
+            COALESCE(s.current_status, 'UNKNOWN') as status,
+            s.is_flapping,
             COUNT(uc.subdomain) as check_count,
             AVG(CASE WHEN uc.up THEN 1 ELSE 0 END) * 100 as uptime_percentage,
             MAX(uc.time) as last_check
         FROM monitoring.subdomains s
         LEFT JOIN monitoring.uptime_checks uc ON s.subdomain = uc.subdomain
             AND uc.time > NOW() - INTERVAL '24 hours'
-        GROUP BY s.id, s.domain, s.subdomain, s.discovered_at, s.last_seen, s.active, s.platform, s.last_platform_check, s.check_path
+        GROUP BY s.id, s.domain, s.subdomain, s.discovered_at, s.last_seen, s.active, s.platform, s.last_platform_check, s.check_path, s.current_status, s.is_flapping
         ORDER BY s.active DESC, s.last_seen DESC
     """)
 
@@ -776,25 +835,48 @@ async def receive_geo_report(report: dict):
     pool = await get_db_pool()
     results = report.get("results", [])
     location = report.get("location", "UNKNOWN").upper()
+    agent_token = report.get("token", "")
 
     # Only accept reports from known agents (EU, PH, SG)
     if location not in ['EU', 'PH', 'SG']:
-        print(f"🚫 Rejected {len(results)} geo-reports from unauthorized location: {location}")
+        logger.warning(f"🚫 Rejected {len(results)} geo-reports from unauthorized location: {location}")
         return {"status": "rejected", "message": f"Unauthorized location: {location}"}
 
-    print(f"📥 Received {len(results)} geo-reports from {location}")
+    # Validate agent token
+    if location in AGENT_TOKENS:
+        expected_token = AGENT_TOKENS[location]['token']
+        if agent_token != expected_token:
+            logger.warning(f"🚫 Rejected {len(results)} geo-reports from {location}: Invalid token")
+            logger.warning(f"   Expected: {expected_token[:16]}... Got: {agent_token[:16] if agent_token else 'none'}...")
+            
+            # Mark agent as out of sync and outdated
+            await pool.execute("""
+                UPDATE monitoring.agent_heartbeats
+                SET out_of_sync = TRUE,
+                    status = 'outdated'
+                WHERE location = $1
+            """, location)
+            
+            return {"status": "rejected", "message": f"Invalid token for {location}. Agent needs redeployment."}
+    else:
+        logger.warning(f"🚫 Rejected {len(results)} geo-reports from {location}: No token generated yet")
+        return {"status": "rejected", "message": "Tokens not initialized"}
+
+    logger.info(f"📥 Received {len(results)} geo-reports from {location} ✅ Token valid")
 
     try:
         async with pool.acquire() as conn:
             async with conn.transaction():
-                # Update agent heartbeat
+                # Update agent heartbeat with token
                 await conn.execute("""
-                    INSERT INTO monitoring.agent_heartbeats (location, last_seen, status)
-                    VALUES ($1, NOW(), 'active')
+                    INSERT INTO monitoring.agent_heartbeats (location, last_seen, status, agent_token, out_of_sync)
+                    VALUES ($1, NOW(), 'active', $2, FALSE)
                     ON CONFLICT (location) DO UPDATE SET
                         last_seen = NOW(),
-                        status = 'active'
-                """, location)
+                        status = 'active',
+                        agent_token = $2,
+                        out_of_sync = FALSE
+                """, location, agent_token)
 
                 # Insert monitoring results and update status
                 for result in results:
@@ -847,6 +929,7 @@ async def get_agent_status():
             location,
             last_seen,
             status,
+            out_of_sync,
             EXTRACT(EPOCH FROM (NOW() - last_seen)) / 60 as minutes_since_last_seen
         FROM monitoring.agent_heartbeats
         ORDER BY last_seen DESC
@@ -854,11 +937,19 @@ async def get_agent_status():
 
     agents = []
     for row in rows:
-        status = "online" if row["minutes_since_last_seen"] < 10 else "offline"
+        # Determine agent status
+        if row["status"] == 'outdated' or row["out_of_sync"]:
+            status = "outdated"
+        elif row["minutes_since_last_seen"] < 10:
+            status = "online"
+        else:
+            status = "offline"
+            
         agents.append({
             "location": row["location"],
             "last_seen": row["last_seen"].isoformat(),
             "status": status,
+            "out_of_sync": row["out_of_sync"],
             "minutes_since_last_seen": round(row["minutes_since_last_seen"], 1)
         })
 

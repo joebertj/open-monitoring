@@ -6,17 +6,26 @@
 LOCATION="${LOCATION:-UNKNOWN}"
 CENTRAL_API="http://10.27.79.2:8002"  # API port
 INTERVAL=300
+TOKEN="${AGENT_TOKEN:-}"
 
-echo "Agent: $LOCATION started"
+# Validate token is provided
+if [ -z "$TOKEN" ]; then
+    echo "❌ ERROR: AGENT_TOKEN environment variable not set"
+    echo "This agent must be deployed via deploy_geo_monitor.sh"
+    exit 1
+fi
+
+echo "Agent: $LOCATION started (token: ${TOKEN:0:16}...)"
 
 # Check single subdomain
 check_subdomain() {
     subdomain="$1"
+    check_path="${2:-/}"
     start_time=$(date +%s 2>/dev/null || echo "0")
 
     # Try HTTPS first, fallback to HTTP
-    http_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "https://$subdomain/" 2>/dev/null)
-    response_time=$(curl -s -o /dev/null -w "%{time_total}" --max-time 10 "https://$subdomain/" 2>/dev/null | awk '{printf "%.0f", $1 * 1000}' 2>/dev/null || echo "0")
+    http_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "https://${subdomain}${check_path}" 2>/dev/null)
+    response_time=$(curl -s -o /dev/null -w "%{time_total}" --max-time 10 "https://${subdomain}${check_path}" 2>/dev/null | awk '{printf "%.0f", $1 * 1000}' 2>/dev/null || echo "0")
 
     if [ "$http_code" = "000" ]; then
         http_code="null"
@@ -31,17 +40,28 @@ check_subdomain() {
     echo "{\"subdomain\":\"$subdomain\",\"status_code\":$http_code,\"response_time_ms\":${response_time:-0},\"up\":$up,\"location\":\"$LOCATION\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\"}"
 }
 
-# Get subdomains from API (BusyBox compatible)
+# Get subdomains with check_path from API (BusyBox compatible)
 get_subdomains() {
-    curl -s --max-time 30 "$CENTRAL_API/api/subdomains" 2>/dev/null | grep -o '"subdomain":"[^"]*"' | sed 's/.*"subdomain":"\([^"]*\)".*/\1/'
+    # Parse JSON to get subdomain|check_path pairs
+    # Simple sed parsing that works with BusyBox
+    curl -s --max-time 30 "$CENTRAL_API/api/subdomains" 2>/dev/null | \
+        sed 's/},{/}\n{/g' | \
+        grep '"subdomain"' | \
+        sed 's/.*"subdomain":"\([^"]*\)".*"check_path":"\([^"]*\)".*/\1|\2/; t; s/.*"subdomain":"\([^"]*\)".*/\1|\//'
 }
 
 # Report results
 report_results() {
     results="$1"
-    payload="{\"results\":[$results],\"location\":\"$LOCATION\"}"
+    payload="{\"results\":[$results],\"location\":\"$LOCATION\",\"token\":\"$TOKEN\"}"
 
     response=$(curl -s -X POST -H "Content-Type: application/json" -d "$payload" --max-time 30 "$CENTRAL_API/api/geo-report" 2>/dev/null)
+    
+    # Check if report was accepted or rejected
+    if echo "$response" | grep -q '"status":"rejected"'; then
+        echo "❌ Report rejected by server - token may be invalid or expired"
+        exit 1
+    fi
 }
 
 # Main loop
@@ -49,16 +69,20 @@ while true; do
     SUBDOMAINS=$(get_subdomains)
     if [ -n "$SUBDOMAINS" ]; then
         RESULTS=""
-        for subdomain in $SUBDOMAINS; do
-            if [ -n "$RESULTS" ]; then
-                RESULTS="$RESULTS,"
+        echo "$SUBDOMAINS" | while IFS='|' read -r subdomain check_path; do
+            if [ -n "$subdomain" ]; then
+                if [ -n "$RESULTS" ]; then
+                    RESULTS="$RESULTS,"
+                fi
+                result=$(check_subdomain "$subdomain" "${check_path:-/}")
+                RESULTS="$RESULTS$result"
+                
+                # Report immediately to avoid losing data in subshell
+                if [ -n "$result" ]; then
+                    report_results "$result"
+                fi
             fi
-            result=$(check_subdomain "$subdomain")
-            RESULTS="$RESULTS$result"
         done
-        if [ -n "$RESULTS" ]; then
-            report_results "$RESULTS"
-        fi
     fi
     sleep "$INTERVAL"
 done

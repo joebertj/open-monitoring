@@ -125,6 +125,16 @@ EOF
     }
 
 
+# Get agent token from central API
+get_agent_token() {
+    local location=$1
+    # Fetch token from database via direct connection (requires DATABASE_URL on deployment machine)
+    # Or get from scheduler logs during deployment
+    # For now, query the API temporarily - will be replaced with DB query
+    local token=$(curl -s "http://10.27.79.2:8002/api/agent-token/${location}" 2>/dev/null | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+    echo "$token"
+}
+
 # Main deployment function
 deploy_to_server() {
     local server=$1
@@ -132,6 +142,17 @@ deploy_to_server() {
     local location=$3
 
     echo "🚀 Deploying to $server ($location)..."
+
+    # Get agent token from central server
+    echo "🔐 Fetching authentication token for $location..."
+    local agent_token=$(get_agent_token "$location")
+    
+    if [ -z "$agent_token" ]; then
+        echo "❌ Failed to get agent token. Ensure scheduler is running on central server."
+        return 1
+    fi
+    
+    echo "✅ Token received: ${agent_token:0:16}..."
 
     # Kill any existing processes
     ssh -i "$key_path" "$server" "
@@ -144,10 +165,10 @@ deploy_to_server() {
     # Generate and deploy the ultra-minimal script
     generate_monitor_script | ssh -i "$key_path" "$server" "cat > geo_monitor.sh && chmod +x geo_monitor.sh"
 
-    # Start the agent directly with location override
-    ssh -i "$key_path" "$server" "export LOCATION=\"$location\" && ./geo_monitor.sh > monitor.log 2>&1 &"
+    # Start the agent with location and token
+    ssh -i "$key_path" "$server" "export LOCATION=\"$location\" && export AGENT_TOKEN=\"$agent_token\" && ./geo_monitor.sh > monitor.log 2>&1 &"
 
-    echo "✅ Deployed ultra-minimal monitoring agent to $server"
+    echo "✅ Deployed authenticated monitoring agent to $server"
 }
 
 # Check if required tools are available
