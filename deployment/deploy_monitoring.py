@@ -179,6 +179,25 @@ class MonitoringDeploymentServer:
             else:
                 logger.warning("⚠️ Health check did not return 'healthy'")
 
+            # Step 5: Start scheduler if not running
+            logger.info("⏰ Step 5: Starting monitoring scheduler...")
+            scheduler_result = await self.execute_command(
+                "curl -s -X POST http://localhost:8002/api/scheduler/start",
+                working_dir,
+            )
+
+            # Step 6: Redeploy geo-monitoring agents
+            logger.info("🌍 Step 6: Redeploying geo-monitoring agents...")
+            agent_result = await self.execute_command(
+                "./deployment/deploy_geo_monitor.sh all",
+                working_dir,
+            )
+
+            if agent_result["success"]:
+                logger.info("✅ Geo-agents redeployed!")
+            else:
+                logger.warning(f"⚠️ Geo-agent deployment had issues: {agent_result['error']}")
+
             logger.info("✅ Open Monitoring deployment completed successfully!")
 
             return {
@@ -187,11 +206,16 @@ class MonitoringDeploymentServer:
                 "deployment_time": datetime.now().isoformat(),
                 "steps_completed": [
                     "git_pull",
+                    "docker_rebuild",
                     "docker_restart",
                     "service_wait",
                     "health_check",
+                    "scheduler_start",
+                    "geo_agents_deploy",
                 ],
                 "health_status": health_result.get("output", "unknown"),
+                "scheduler_status": scheduler_result.get("output", "unknown"),
+                "agent_deployment": agent_result.get("output", "unknown")[:200] if agent_result.get("output") else "unknown",
                 "working_dir": working_dir,
                 "dashboard_url": "http://10.27.79.2:8002",
             }
