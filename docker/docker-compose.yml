@@ -25,8 +25,7 @@ services:
       dockerfile: docker/Dockerfile.backend
     container_name: monitoring-backend
     ports:
-      - "8002:8002"   # Frontend & API
-      - "8443:8443"   # HTTPS
+      - "8002:8002"   # HTTP (HTTPS handled by nginx)
     env_file:
       - ../backend/.env
     depends_on:
@@ -34,7 +33,6 @@ services:
         condition: service_healthy
     volumes:
       - ../backend:/app
-      - ../ssl:/app/ssl
       - ../static:/app/static
     restart: unless-stopped
 

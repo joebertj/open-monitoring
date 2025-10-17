@@ -11,17 +11,15 @@ RUN apt-get update && apt-get install -y \
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code and SSL certificates
+# Copy application code
 COPY backend/ .
-COPY ssl/ ./ssl/
 COPY static/ ./static/
-COPY templates/ ./templates/
 
 # Make the startup script executable
 RUN chmod +x start_server.py
 
-# Expose ports (HTTP and HTTPS)
-EXPOSE 8002 8443
+# Expose HTTP port (HTTPS handled by nginx proxy)
+EXPOSE 8002
 
 # Run FastAPI app with the startup script
 CMD ["python", "start_server.py"]
