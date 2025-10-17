@@ -593,24 +593,33 @@ function closeAgentModal() {
     modal.classList.add('hidden');
 }
 
-// Close modals when clicking outside
-document.getElementById('timeseries-modal').addEventListener('click', function(e) {
-    if (e.target === this) {
-        closeTimeSeries();
-    }
-});
+// Close modals when clicking outside (with null checks)
+const timeseriesModal = document.getElementById('timeseries-modal');
+if (timeseriesModal) {
+    timeseriesModal.addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeTimeSeries();
+        }
+    });
+}
 
-document.getElementById('dns-modal').addEventListener('click', function(e) {
-    if (e.target === this) {
-        closeDNSModal();
-    }
-});
+const dnsModal = document.getElementById('dns-modal');
+if (dnsModal) {
+    dnsModal.addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeDNSModal();
+        }
+    });
+}
 
-document.getElementById('agent-modal').addEventListener('click', function(e) {
-    if (e.target === this) {
-        closeAgentModal();
-    }
-});
+const agentModal = document.getElementById('agent-modal');
+if (agentModal) {
+    agentModal.addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeAgentModal();
+        }
+    });
+}
 
 // Filter monitoring cards by status
 function filterByStatus(status) {
