@@ -8,23 +8,23 @@
     <div class="bg-white p-6 rounded-lg shadow">
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 text-center">
         <div>
-          <div class="text-3xl font-bold text-blue-600">{{ subdomains|length }}</div>
+          <div id="total-count" class="text-3xl font-bold text-blue-600">{{ subdomains|length }}</div>
           <div class="text-sm text-gray-600">Projects Monitored</div>
         </div>
         <div>
-          <div class="text-3xl font-bold text-green-600">{{ subdomains|selectattr('status', 'equalto', 'up')|list|length }}</div>
+          <div id="up-count" class="text-3xl font-bold text-green-600">{{ subdomains|selectattr('status', 'equalto', 'up')|list|length }}</div>
           <div class="text-sm text-gray-600">Currently Up</div>
         </div>
         <div>
-          <div class="text-3xl font-bold text-red-600">{{ subdomains|selectattr('status', 'equalto', 'down')|list|length }}</div>
+          <div id="down-count" class="text-3xl font-bold text-red-600">{{ subdomains|selectattr('status', 'equalto', 'down')|list|length }}</div>
           <div class="text-sm text-gray-600">Currently Down</div>
         </div>
         <div>
-          <div class="text-3xl font-bold text-gray-600">{{ subdomains|selectattr('status', 'equalto', 'unknown')|list|length }}</div>
+          <div id="unknown-count" class="text-3xl font-bold text-gray-600">{{ subdomains|selectattr('status', 'equalto', 'unknown')|list|length }}</div>
           <div class="text-sm text-gray-600">Unknown Status</div>
         </div>
         <div class="cursor-pointer hover:bg-purple-50 rounded-lg p-2 transition-colors" onclick="showDNSDiscoveries()">
-          <div class="text-3xl font-bold text-purple-600">{{ other_dns|length }}</div>
+          <div id="dns-count" class="text-3xl font-bold text-purple-600">{{ other_dns|length }}</div>
           <div class="text-sm text-gray-600">DNS Discoveries</div>
         </div>
         <div class="cursor-pointer hover:bg-gray-50 rounded-lg p-2 transition-colors" onclick="showAgentStatus()">
@@ -112,7 +112,7 @@
 
 <!-- DNS Discoveries Modal -->
 <div id="dns-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
-  <div class="flex items-center justify-center min-h-screen p-4">
+  <div class="flex items-start justify-center min-h-screen p-4 pt-20">
     <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-screen overflow-hidden">
       <div class="p-6 border-b">
         <div class="flex justify-between items-center">
@@ -140,7 +140,7 @@
 
 <!-- Agent Status Modal -->
 <div id="agent-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
-  <div class="flex items-center justify-center min-h-screen p-4">
+  <div class="flex items-start justify-center min-h-screen p-4 pt-20">
     <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-screen overflow-hidden">
       <div class="p-6 border-b">
         <div class="flex justify-between items-center">
