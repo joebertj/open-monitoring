@@ -289,10 +289,15 @@ function renderTimeSeriesChart(checks, subdomain, hours = 24) {
             status: check.status_code
         });
     });
+    
+    // Sort each location's data by time (ascending - oldest to newest)
+    Object.keys(locationData).forEach(location => {
+        locationData[location].sort((a, b) => a.time - b.time);
+    });
 
     let html = '<div class="space-y-4">';
     // Dynamic description based on time range
-    const timeLabel = hours <= 0.1 ? 'last 5 minutes' : hours === 1 ? 'last 1 hour' : 'last 24 hours';
+    const timeLabel = hours <= 0.3 ? 'last 15 minutes' : hours === 1 ? 'last 1 hour' : 'last 24 hours';
     html += `<div class="text-sm text-gray-600">Response Time Comparison (${timeLabel})</div>`;
 
     // Color mapping for locations
