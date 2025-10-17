@@ -724,6 +724,8 @@ async def get_subdomains(request: Request):
             "platform": row["platform"],
             "last_platform_check": row["last_platform_check"].isoformat() if row["last_platform_check"] else None,
             "check_path": row["check_path"],
+            "status": row["status"],
+            "is_flapping": row["is_flapping"],
             "check_count": row["check_count"] or 0,
             "uptime_percentage": round(float(row["uptime_percentage"] or 0), 2),
             "last_check": row["last_check"].isoformat() if row["last_check"] else None
