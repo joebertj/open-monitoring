@@ -832,9 +832,13 @@ async def update_subdomain_status_with_3strike(conn, subdomain: str, is_up: bool
 @app.get("/api/agent-token/{location}")
 async def get_agent_token(location: str, request: Request):
     """Get authentication token for agent (only accessible from localhost during deployment)"""
-    # Only allow access from localhost for security
+    # Only allow access from localhost and Docker internal network for security
     client_host = request.client.host
-    if client_host not in ['127.0.0.1', 'localhost', '::1']:
+    allowed_hosts = ['127.0.0.1', 'localhost', '::1']
+    # Allow Docker internal network (172.x.x.x)
+    is_docker_network = client_host.startswith('172.')
+    
+    if client_host not in allowed_hosts and not is_docker_network:
         logger.warning(f"🚫 Unauthorized token request from {client_host}")
         return {"status": "error", "message": "Access denied"}
     
