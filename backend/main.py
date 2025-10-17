@@ -632,6 +632,9 @@ async def start_scheduler(interval_minutes: int = 1):
         if scheduler.running:
             return {"message": "Scheduler is already running"}
 
+        # Regenerate agent tokens on scheduler start
+        await regenerate_agent_tokens()
+
         # Clear any existing jobs
         scheduler.remove_all_jobs()
 
