@@ -105,8 +105,8 @@
             </div>
             <!-- Time Range Filters -->
             <div class="flex gap-2">
-              <button id="filter-5m" onclick="changeTimeRange(5/60)" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-gray-100 text-gray-600 hover:bg-gray-200">
-                5 Minutes
+              <button id="filter-15m" onclick="changeTimeRange(15/60)" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-gray-100 text-gray-600 hover:bg-gray-200">
+                15 Minutes
               </button>
               <button id="filter-1h" onclick="changeTimeRange(1)" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-gray-100 text-gray-600 hover:bg-gray-200">
                 1 Hour
@@ -248,13 +248,13 @@ function changeTimeRange(hours) {
 
 function updateFilterButtons() {
     // Reset all buttons to default style
-    document.getElementById('filter-5m').className = 'px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-gray-100 text-gray-600 hover:bg-gray-200';
+    document.getElementById('filter-15m').className = 'px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-gray-100 text-gray-600 hover:bg-gray-200';
     document.getElementById('filter-1h').className = 'px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-gray-100 text-gray-600 hover:bg-gray-200';
     document.getElementById('filter-24h').className = 'px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-gray-100 text-gray-600 hover:bg-gray-200';
     
     // Highlight active button
-    if (currentTimeRange <= 0.1) { // 5 minutes (5/60 = 0.0833...)
-        document.getElementById('filter-5m').className = 'px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-blue-600 text-white hover:bg-blue-700';
+    if (currentTimeRange <= 0.3) { // 15 minutes (15/60 = 0.25)
+        document.getElementById('filter-15m').className = 'px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-blue-600 text-white hover:bg-blue-700';
     } else if (currentTimeRange === 1) {
         document.getElementById('filter-1h').className = 'px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-blue-600 text-white hover:bg-blue-700';
     } else {
