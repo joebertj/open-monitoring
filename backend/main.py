@@ -175,7 +175,7 @@ async def get_inactive_subdomains():
             ORDER BY uc.time DESC
             LIMIT 1
         ) latest_check ON true
-        WHERE COALESCE(latest_check.up, false) = false
+        WHERE s.active = false
         ORDER BY s.last_seen DESC
     """)
 
