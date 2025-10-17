@@ -829,6 +829,33 @@ async def update_subdomain_status_with_3strike(conn, subdomain: str, is_up: bool
     if status_changed:
         logger.info(f"📊 Status changed for {subdomain}: {current_status} → {new_status}")
 
+@app.get("/api/agent-token/{location}")
+async def get_agent_token(location: str, request: Request):
+    """Get authentication token for agent (only accessible from localhost during deployment)"""
+    # Only allow access from localhost for security
+    client_host = request.client.host
+    if client_host not in ['127.0.0.1', 'localhost', '::1']:
+        logger.warning(f"🚫 Unauthorized token request from {client_host}")
+        return {"status": "error", "message": "Access denied"}
+    
+    location = location.upper()
+    
+    # Only provide tokens for known agents
+    if location not in ['EU', 'PH', 'SG']:
+        return {"status": "error", "message": "Unknown location"}
+    
+    # Return the current expected token
+    if location in AGENT_TOKENS:
+        logger.info(f"🔑 Token requested for {location} from localhost")
+        return {
+            "status": "success",
+            "location": location,
+            "token": AGENT_TOKENS[location]['token']
+        }
+    else:
+        # If tokens not generated yet, return error
+        return {"status": "error", "message": "Tokens not initialized. Start scheduler first."}
+
 @app.post("/api/geo-report")
 async def receive_geo_report(report: dict):
     """Receive monitoring reports from geo-distributed agents"""
