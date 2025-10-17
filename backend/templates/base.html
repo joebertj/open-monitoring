@@ -34,10 +34,99 @@
     </main>
 
     <script>
-        // Auto-refresh every 30 seconds
-        setTimeout(function() {
-            location.reload();
+        // Auto-refresh dashboard data every 30 seconds without full page reload
+        setInterval(async function() {
+            try {
+                // Only refresh if we're on the dashboard page and no modal is open
+                const timeseriesModal = document.getElementById('timeseries-modal');
+                const dnsModal = document.getElementById('dns-modal');
+                const agentModal = document.getElementById('agent-modal');
+                const isTimeseriesModalHidden = !timeseriesModal || timeseriesModal.classList.contains('hidden');
+                const isDnsModalHidden = !dnsModal || dnsModal.classList.contains('hidden');
+                const isAgentModalHidden = !agentModal || agentModal.classList.contains('hidden');
+
+                if (window.location.pathname === '/' && isTimeseriesModalHidden && isDnsModalHidden && isAgentModalHidden) {
+                    const response = await fetch('/api/subdomains');
+                    if (response.ok) {
+                        const data = await response.json();
+                        // Update subdomain stats without full page reload
+                        updateDashboardData(data.subdomains);
+                    }
+                }
+            } catch (error) {
+                console.error('Auto-refresh failed:', error);
+            }
         }, 30000);
+
+        function updateDashboardData(subdomains) {
+            // Update dashboard header stats
+            const totalCount = document.getElementById('total-count');
+            const upCount = document.getElementById('up-count');
+            const downCount = document.getElementById('down-count');
+            const unknownCount = document.getElementById('unknown-count');
+            
+            if (totalCount) {
+                totalCount.textContent = subdomains.length;
+            }
+            
+            if (upCount) {
+                const upServices = subdomains.filter(s => s.status === 'up').length;
+                upCount.textContent = upServices;
+            }
+            
+            if (downCount) {
+                const downServices = subdomains.filter(s => s.status === 'down').length;
+                downCount.textContent = downServices;
+            }
+            
+            if (unknownCount) {
+                const unknownServices = subdomains.filter(s => s.status === 'unknown').length;
+                unknownCount.textContent = unknownServices;
+            }
+
+            // Update each subdomain card with fresh data
+            subdomains.forEach(subdomain => {
+                const card = document.querySelector(`[onclick*="${subdomain.subdomain}"]`);
+                if (card) {
+                    // Update status - find the status badge (has rounded classes)
+                    const statusSpan = card.querySelector('.px-2.py-1.rounded-full');
+                    if (statusSpan) {
+                        let statusClass = 'px-2 py-1 rounded-full text-xs font-medium ';
+                        if (subdomain.status === 'up') {
+                            statusClass += 'bg-green-100 text-green-800';
+                        } else if (subdomain.status === 'down') {
+                            statusClass += 'bg-red-100 text-red-800';
+                        } else {
+                            statusClass += 'bg-gray-100 text-gray-800';
+                        }
+                        statusSpan.className = statusClass;
+                        statusSpan.textContent = subdomain.status.toUpperCase();
+                    }
+
+                    // Update uptime
+                    const uptimeElements = card.querySelectorAll('.font-medium');
+                    if (uptimeElements.length >= 2) {
+                        uptimeElements[1].textContent = `${subdomain.uptime_percentage.toFixed(1)}%`;
+                    }
+
+                    // Update response time
+                    if (uptimeElements.length >= 3) {
+                        uptimeElements[2].textContent = subdomain.response_time_ms 
+                            ? `${Math.round(subdomain.response_time_ms)}ms` 
+                            : 'N/A';
+                    }
+
+                    // Update last check time
+                    if (uptimeElements.length >= 4 && subdomain.last_check) {
+                        const date = new Date(subdomain.last_check);
+                        uptimeElements[3].textContent = date.toLocaleTimeString('en-US', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        });
+                    }
+                }
+            });
+        }
     </script>
 </body>
 </html>

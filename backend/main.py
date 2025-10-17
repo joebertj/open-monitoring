@@ -121,13 +121,13 @@ async def get_subdomains_with_stats():
             s.active,
             s.platform,
             s.last_platform_check,
+            COALESCE(s.current_status, 'UNKNOWN') as status,
+            s.is_flapping,
+            s.consecutive_up_count,
+            s.consecutive_down_count,
+            s.last_status_change,
             COALESCE(latest_check.status_code, 0) as status_code,
             COALESCE(latest_check.response_time_ms, 0) as response_time_ms,
-            CASE
-                WHEN latest_check.up IS NULL THEN 'unknown'
-                WHEN latest_check.up = true THEN 'up'
-                ELSE 'down'
-            END as status,
             latest_check.up as up,
             COALESCE(latest_check.time, s.last_seen) as last_check,
             COALESCE(stats.uptime_percentage, 0) as uptime_percentage,
@@ -301,17 +301,30 @@ async def dashboard(request: Request):
 
 @app.get("/alerts", response_class=HTMLResponse)
 async def alerts_page(request: Request):
-    """Serve the alerts page"""
+    """Serve the alerts page - shows all non-UP subdomains"""
     try:
-        alerts_data = await get_recent_alerts()
+        # Get all subdomains
+        all_subdomains = await get_subdomains_with_stats()
+        
+        # Filter for non-UP subdomains (DOWN, FLAPPING, UNKNOWN)
+        alert_subdomains = [s for s in all_subdomains if s['status'] != 'UP']
+        
         return templates.TemplateResponse("alerts.html", {
             "request": request,
-            "alerts": alerts_data
+            "subdomains": alert_subdomains,
+            "total_alerts": len(alert_subdomains),
+            "down_count": len([s for s in alert_subdomains if s['status'] == 'DOWN']),
+            "flapping_count": len([s for s in alert_subdomains if s['status'] == 'FLAPPING']),
+            "unknown_count": len([s for s in alert_subdomains if s['status'] == 'UNKNOWN'])
         })
     except Exception as e:
         return templates.TemplateResponse("alerts.html", {
             "request": request,
-            "alerts": [],
+            "subdomains": [],
+            "total_alerts": 0,
+            "down_count": 0,
+            "flapping_count": 0,
+            "unknown_count": 0,
             "error": str(e)
         })
 
@@ -675,6 +688,81 @@ async def get_subdomain_checks(subdomain: str, hours: int = 24):
 
     return {"subdomain": subdomain, "checks": checks}
 
+async def update_subdomain_status_with_3strike(conn, subdomain: str, is_up: bool):
+    """
+    Update subdomain status using 3-strike rule
+    - Requires 3 consecutive same checks to change status
+    - Detects FLAPPING if status keeps changing
+    """
+    # Get current subdomain state
+    row = await conn.fetchrow("""
+        SELECT current_status, consecutive_up_count, consecutive_down_count, is_flapping
+        FROM monitoring.subdomains
+        WHERE subdomain = $1
+    """, subdomain)
+    
+    if not row:
+        # Subdomain doesn't exist in subdomains table, skip
+        return
+    
+    current_status = row['current_status'] or 'UNKNOWN'
+    consecutive_up = row['consecutive_up_count'] or 0
+    consecutive_down = row['consecutive_down_count'] or 0
+    is_flapping = row['is_flapping'] or False
+    
+    # Get last 5 checks to detect flapping
+    recent_checks = await conn.fetch("""
+        SELECT up FROM monitoring.uptime_checks
+        WHERE subdomain = $1
+        ORDER BY time DESC
+        LIMIT 5
+    """, subdomain)
+    
+    # Detect flapping: if we have 5+ checks and they alternate
+    if len(recent_checks) >= 5:
+        ups = sum(1 for c in recent_checks if c['up'])
+        # If roughly 40-60% up, it's flapping
+        if 2 <= ups <= 3:
+            is_flapping = True
+        else:
+            is_flapping = False
+    
+    # Update consecutive counters
+    if is_up:
+        consecutive_up += 1
+        consecutive_down = 0
+    else:
+        consecutive_down += 1
+        consecutive_up = 0
+    
+    # Determine new status (3-strike rule)
+    new_status = current_status
+    status_changed = False
+    
+    if is_flapping:
+        new_status = 'FLAPPING'
+        status_changed = (current_status != 'FLAPPING')
+    elif consecutive_up >= 3:
+        new_status = 'UP'
+        status_changed = (current_status != 'UP')
+    elif consecutive_down >= 3:
+        new_status = 'DOWN'
+        status_changed = (current_status != 'DOWN')
+    
+    # Update subdomain status
+    await conn.execute("""
+        UPDATE monitoring.subdomains
+        SET current_status = $1,
+            consecutive_up_count = $2,
+            consecutive_down_count = $3,
+            is_flapping = $4,
+            last_status_change = CASE WHEN $5 THEN NOW() ELSE last_status_change END
+        WHERE subdomain = $6
+    """, new_status, consecutive_up, consecutive_down, is_flapping, status_changed, subdomain)
+    
+    if status_changed:
+        logger.info(f"📊 Status changed for {subdomain}: {current_status} → {new_status}")
+
 @app.post("/api/geo-report")
 async def receive_geo_report(report: dict):
     """Receive monitoring reports from geo-distributed agents"""
@@ -701,8 +789,9 @@ async def receive_geo_report(report: dict):
                         status = 'active'
                 """, location)
 
-                # Insert monitoring results
+                # Insert monitoring results and update status
                 for result in results:
+                    # Insert uptime check
                     await conn.execute("""
                         INSERT INTO monitoring.uptime_checks
                         (time, subdomain, status_code, response_time_ms, up, platform, error_message, location)
@@ -717,6 +806,9 @@ async def receive_geo_report(report: dict):
                     result.get("error"),
                     location
                     )
+                    
+                    # Update subdomain status with 3-strike rule
+                    await update_subdomain_status_with_3strike(conn, result["subdomain"], result["up"])
 
         return {"status": "success", "received": len(results)}
 

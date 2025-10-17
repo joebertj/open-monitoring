@@ -59,6 +59,19 @@
         }, 30000);
 
         function updateDashboardData(subdomains) {
+            // Update dashboard header stats
+            const totalCount = document.getElementById('total-count');
+            const upCount = document.getElementById('up-count');
+            
+            if (totalCount) {
+                totalCount.textContent = subdomains.length;
+            }
+            
+            if (upCount) {
+                const upServices = subdomains.filter(s => s.uptime_percentage > 0).length;
+                upCount.textContent = upServices;
+            }
+
             // Update each subdomain card with fresh data
             subdomains.forEach(subdomain => {
                 const card = document.querySelector(`[onclick*="${subdomain.subdomain}"]`);
