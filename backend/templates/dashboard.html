@@ -295,21 +295,24 @@ function renderTimeSeriesChart(checks, subdomain, hours = 24) {
         locationData[location].sort((a, b) => a.time - b.time);
     });
 
-    let html = '<div class="space-y-4">';
     // Dynamic description based on time range
     const timeLabel = hours <= 0.3 ? 'last 15 minutes' : hours === 1 ? 'last 1 hour' : 'last 24 hours';
-    html += `<div class="text-sm text-gray-600">Response Time Comparison (${timeLabel})</div>`;
-
+    
     // Color mapping for locations
     const locationColors = {
+        'EU': '#3b82f6',  // blue
+        'SG': '#10b981',  // green
+        'PH': '#ef4444'   // red
+    };
+    
+    const locationTailwindClasses = {
         'EU': { bg: 'bg-blue-500', line: 'border-blue-500', text: 'text-blue-600' },
         'SG': { bg: 'bg-green-500', line: 'border-green-500', text: 'text-green-600' },
         'PH': { bg: 'bg-red-500', line: 'border-red-500', text: 'text-red-600' }
     };
 
-    // Legend - prioritize EU as bars, then SG, then others as lines
-    html += '<div class="flex flex-wrap gap-6 mb-4">';
-    const locationOrder = ['EU', 'SG', 'PH']; // Priority order for bars
+    // Sort locations by priority
+    const locationOrder = ['EU', 'SG', 'PH'];
     const sortedLocations = Object.keys(locationData).sort((a, b) => {
         const aIndex = locationOrder.indexOf(a);
         const bIndex = locationOrder.indexOf(b);
@@ -319,129 +322,184 @@ function renderTimeSeriesChart(checks, subdomain, hours = 24) {
         return a.localeCompare(b);
     });
 
+    // Create container with description and legend
+    const container = document.createElement('div');
+    container.className = 'space-y-4';
+    
+    const description = document.createElement('div');
+    description.className = 'text-sm text-gray-600';
+    description.textContent = `Response Time Comparison (${timeLabel})`;
+    container.appendChild(description);
+
+    // Legend
+    const legend = document.createElement('div');
+    legend.className = 'flex flex-wrap gap-6 mb-4';
     sortedLocations.forEach((location, index) => {
-        const color = locationColors[location] || { bg: 'bg-gray-500', line: 'border-gray-500', text: 'text-gray-600' };
-        const isBars = index === 0; // First in sorted order gets bars
+        const color = locationTailwindClasses[location] || { bg: 'bg-gray-500', line: 'border-gray-500', text: 'text-gray-600' };
+        const isBars = index === 0;
         const type = isBars ? 'Bars' : 'Lines';
-        html += `<div class="flex items-center gap-2">
+        
+        const legendItem = document.createElement('div');
+        legendItem.className = 'flex items-center gap-2';
+        legendItem.innerHTML = `
             ${isBars ?
                 `<div class="w-3 h-3 rounded-sm ${color.bg}"></div>` :
                 `<div class="w-4 h-0.5 ${color.line} border-t-2"></div>`
             }
             <span class="text-sm ${color.text} font-medium">${location} (${type})</span>
-        </div>`;
+        `;
+        legend.appendChild(legendItem);
     });
-    html += '</div>';
+    container.appendChild(legend);
 
-    html += '<div class="relative h-64 bg-gray-50 rounded p-4">';
+    // Create D3 chart
+    const margin = {top: 20, right: 30, bottom: 50, left: 60};
+    const width = 800 - margin.left - margin.right;
+    const height = 300 - margin.top - margin.bottom;
 
-    // Find global min/max for consistent scaling
-    let allTimes = [];
-    Object.values(locationData).forEach(data => {
-        allTimes = allTimes.concat(data.map(d => d.responseTime));
+    const svg = d3.create('svg')
+        .attr('viewBox', `0 0 ${width + margin.left + margin.right} ${height + margin.top + margin.bottom}`)
+        .attr('class', 'w-full h-96');
+
+    const g = svg.append('g')
+        .attr('transform', `translate(${margin.left},${margin.top})`);
+
+    // Get all data points for scales
+    const allData = [];
+    sortedLocations.forEach(location => {
+        locationData[location].forEach(d => allData.push(d));
     });
-    const maxTime = Math.max(...allTimes);
-    const minTime = Math.min(...allTimes.filter(t => t > 0)) || 0;
-    const chartHeight = 200; // pixels
 
-    // Create SVG for combined chart
-    const locations = sortedLocations; // Use the same sorted order as legend
-    const dataPoints = 15; // Show last 15 points
+    if (allData.length === 0) {
+        chart.innerHTML = '<div class="flex items-center justify-center h-full"><div class="text-gray-500">No data available for this time range</div></div>';
+        return;
+    }
 
-    html += '<svg class="w-full h-full" viewBox="0 0 400 250">';
+    // Create scales
+    const xScale = d3.scaleTime()
+        .domain(d3.extent(allData, d => d.time))
+        .range([0, width]);
 
-    // Draw bars for first location (highest priority - EU, then SG, etc.)
-    if (locations.length > 0) {
-        const primaryLocation = locations[0];
+    const yScale = d3.scaleLinear()
+        .domain([0, d3.max(allData, d => d.responseTime)])
+        .nice()
+        .range([height, 0]);
+
+    // Add X axis
+    const xAxis = d3.axisBottom(xScale)
+        .ticks(hours <= 0.3 ? 6 : hours === 1 ? 8 : 10);
+    
+    // Format x-axis based on time range
+    if (hours <= 0.3) {
+        xAxis.tickFormat(d3.timeFormat('%H:%M:%S'));
+    } else if (hours === 1) {
+        xAxis.tickFormat(d3.timeFormat('%H:%M'));
+    } else {
+        xAxis.tickFormat(d3.timeFormat('%m/%d %H:%M'));
+    }
+
+    g.append('g')
+        .attr('transform', `translate(0,${height})`)
+        .call(xAxis)
+        .selectAll('text')
+        .attr('transform', 'rotate(-45)')
+        .style('text-anchor', 'end')
+        .style('font-size', '10px')
+        .style('fill', '#6b7280');
+
+    // Add Y axis
+    g.append('g')
+        .call(d3.axisLeft(yScale).ticks(6))
+        .selectAll('text')
+        .style('font-size', '10px')
+        .style('fill', '#6b7280');
+
+    // Y axis label
+    g.append('text')
+        .attr('transform', 'rotate(-90)')
+        .attr('y', 0 - margin.left)
+        .attr('x', 0 - (height / 2))
+        .attr('dy', '1em')
+        .style('text-anchor', 'middle')
+        .style('font-size', '12px')
+        .style('fill', '#6b7280')
+        .text('Response Time (ms)');
+
+    // Add grid lines
+    g.append('g')
+        .attr('class', 'grid')
+        .call(d3.axisLeft(yScale)
+            .ticks(6)
+            .tickSize(-width)
+            .tickFormat('')
+        )
+        .style('stroke', '#e5e7eb')
+        .style('stroke-opacity', 0.7)
+        .style('stroke-dasharray', '2,2');
+
+    // Draw primary location as bars
+    if (sortedLocations.length > 0) {
+        const primaryLocation = sortedLocations[0];
         const primaryData = locationData[primaryLocation];
-        const primaryColor = locationColors[primaryLocation];
+        const barWidth = Math.max(2, width / (primaryData.length * 2));
 
-        primaryData.slice(-dataPoints).forEach((point, index) => {
-            const x = (index / (dataPoints - 1)) * 350 + 25;
-            const height = point.responseTime > 0 ? ((point.responseTime - minTime) / (maxTime - minTime || 1)) * chartHeight : 0;
-            const y = 220 - height;
-            const barColor = point.responseTime > 1000 ? '#f87171' : point.responseTime > 500 ? '#fbbf24' : '#3b82f6';
-
-            html += `<rect x="${x - 3}" y="${y}" width="6" height="${height}" fill="${barColor}" class="transition-opacity hover:opacity-75" title="${point.responseTime}ms at ${point.time.toLocaleTimeString()} (${primaryLocation})"></rect>`;
-        });
+        g.selectAll('.bar')
+            .data(primaryData)
+            .join('rect')
+            .attr('class', 'bar')
+            .attr('x', d => xScale(d.time) - barWidth / 2)
+            .attr('y', d => yScale(d.responseTime))
+            .attr('width', barWidth)
+            .attr('height', d => height - yScale(d.responseTime))
+            .attr('fill', d => {
+                if (d.responseTime > 1000) return '#f87171';
+                if (d.responseTime > 500) return '#fbbf24';
+                return locationColors[primaryLocation] || '#3b82f6';
+            })
+            .attr('opacity', 0.7)
+            .append('title')
+            .text(d => `${primaryLocation}: ${d.responseTime}ms at ${d.time.toLocaleTimeString()}`);
     }
 
-    // Draw lines for other locations (all except the primary bars location)
-    locations.slice(1).forEach((location, locationIndex) => {
+    // Draw other locations as lines
+    const line = d3.line()
+        .x(d => xScale(d.time))
+        .y(d => yScale(d.responseTime))
+        .curve(d3.curveMonotoneX);
+
+    sortedLocations.slice(1).forEach(location => {
         const data = locationData[location];
-        const color = locationColors[location];
-        // Map location colors to hex values for SVG
-        const locationHexColors = {
-            'EU': '#3b82f6', // blue
-            'SG': '#10b981', // green
-            'PH': '#ef4444'  // red
-        };
-        const lineColor = locationHexColors[location] || '#6b7280'; // gray fallback
+        const color = locationColors[location] || '#6b7280';
 
-        // Draw line
-        let pathData = '';
-        data.slice(-dataPoints).forEach((point, index) => {
-            const x = (index / (dataPoints - 1)) * 350 + 25;
-            const y = 220 - (point.responseTime > 0 ? ((point.responseTime - minTime) / (maxTime - minTime || 1)) * chartHeight : 0);
-            pathData += `${index === 0 ? 'M' : 'L'} ${x} ${y} `;
-        });
+        // Line
+        g.append('path')
+            .datum(data)
+            .attr('fill', 'none')
+            .attr('stroke', color)
+            .attr('stroke-width', 2)
+            .attr('d', line);
 
-        if (pathData) {
-            html += `<path d="${pathData}" stroke="${lineColor}" stroke-width="2" fill="none" class="drop-shadow-sm"></path>`;
-
-            // Draw data points
-            data.slice(-dataPoints).forEach((point, index) => {
-                const x = (index / (dataPoints - 1)) * 350 + 25;
-                const y = 220 - (point.responseTime > 0 ? ((point.responseTime - minTime) / (maxTime - minTime || 1)) * chartHeight : 0);
-                html += `<circle cx="${x}" cy="${y}" r="3" fill="${lineColor}" class="hover:r-4 transition-all" title="${point.responseTime}ms at ${point.time.toLocaleTimeString()} (${location})"></circle>`;
-            });
-        }
+        // Points
+        g.selectAll(`.point-${location}`)
+            .data(data)
+            .join('circle')
+            .attr('class', `point-${location}`)
+            .attr('cx', d => xScale(d.time))
+            .attr('cy', d => yScale(d.responseTime))
+            .attr('r', 3)
+            .attr('fill', color)
+            .append('title')
+            .text(d => `${location}: ${d.responseTime}ms at ${d.time.toLocaleTimeString()}`);
     });
 
-    // Add Y-axis labels
-    for (let i = 0; i <= 4; i++) {
-        const value = Math.round(minTime + (maxTime - minTime) * i / 4);
-        const y = 220 - (chartHeight * i / 4);
-        html += `<text x="15" y="${y + 4}" class="text-xs fill-gray-500" text-anchor="end">${value}ms</text>`;
-        html += `<line x1="20" y1="${y}" x2="25" y2="${y}" stroke="#e5e7eb" stroke-width="1"></line>`;
-    }
+    container.appendChild(svg.node());
+    
+    const note = document.createElement('div');
+    note.className = 'text-xs text-gray-500 text-center mt-2';
+    note.textContent = 'Combined response time chart: bars for primary location, lines for comparison (lower is better)';
+    container.appendChild(note);
 
-    // Add X-axis labels with appropriate time formatting
-    const numXLabels = 5;
-    for (let i = 0; i < numXLabels; i++) {
-        const x = (i / (numXLabels - 1)) * 350 + 25;
-        
-        // Get a representative time point for this x position
-        const firstLocation = Object.keys(locationData)[0];
-        if (firstLocation && locationData[firstLocation].length > 0) {
-            const dataIndex = Math.floor((i / (numXLabels - 1)) * (locationData[firstLocation].length - 1));
-            const point = locationData[firstLocation][dataIndex];
-            
-            let timeString;
-            if (hours <= 0.1) {
-                // 5 minutes: show time with seconds (HH:MM:SS)
-                timeString = point.time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-            } else if (hours === 1) {
-                // 1 hour: show time (HH:MM)
-                timeString = point.time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-            } else {
-                // 24 hours: show date and time (MM/DD HH:MM)
-                const month = String(point.time.getMonth() + 1).padStart(2, '0');
-                const day = String(point.time.getDate()).padStart(2, '0');
-                const hour = String(point.time.getHours()).padStart(2, '0');
-                const minute = String(point.time.getMinutes()).padStart(2, '0');
-                timeString = `${month}/${day} ${hour}:${minute}`;
-            }
-            
-            html += `<text x="${x}" y="240" class="text-xs fill-gray-500" text-anchor="middle">${timeString}</text>`;
-        }
-    }
-
-    html += '</svg></div>';
-    html += '<div class="text-xs text-gray-500 text-center">Combined response time chart: bars for primary location, lines for comparison (lower is better)</div>';
-    html += '</div>';
-
-    chart.innerHTML = html;
+    chart.appendChild(container);
 }
 
 // DNS Discoveries modal
