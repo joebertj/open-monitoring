@@ -53,6 +53,7 @@ While powerful monitoring tools like Nagios, Zabbix, and Prometheus exist, we ch
 - **Nagios-inspired**: Status overviews, alerts, and service monitoring
 - **BusyBox Compatible**: Agents run on minimal Linux systems
 - **AJAX Auto-refresh**: Preserves UI state, updates data without page reloads
+- **Custom Health Check Paths**: Configure specific endpoints per subdomain (e.g., `/api/status` for APIs)
 
 ## 🛠 Tech Stack
 
@@ -278,6 +279,34 @@ app.add_middleware(
     allow_headers=["*"],
 )
 ```
+
+### Custom Health Check Paths
+
+By default, all subdomains are monitored at their root path `/`. However, some services (especially APIs) may not respond properly at the root but have dedicated health check endpoints.
+
+To configure a custom check path for a subdomain:
+
+```sql
+-- Set custom check path for a subdomain
+UPDATE monitoring.subdomains 
+SET check_path = '/api/status'
+WHERE subdomain = 'api.bettergov.ph';
+```
+
+Or run the migration script:
+
+```bash
+export DATABASE_URL='postgresql://user:pass@host:port/dbname'
+./run_migration.sh
+```
+
+**Example use cases:**
+- `/api/status` for API services
+- `/health` for microservices
+- `/ping` for simple health checks
+- `/api/v1/status` for versioned APIs
+
+The monitoring system (both Python checker and geo-monitor agents) will automatically use the configured path when checking subdomain health.
 
 ## 📊 Adding Metrics
 

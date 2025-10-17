@@ -78,8 +78,8 @@
                             </span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {% if subdomain.last_check %}
-                                {{ subdomain.last_check.strftime('%Y-%m-%d %H:%M:%S') if subdomain.last_check else 'Never' }}
+                            {% if subdomain.last_check_utc8 %}
+                                {{ subdomain.last_check_utc8.strftime('%Y-%m-%d %H:%M:%S UTC+8') }}
                             {% else %}
                                 Never
                             {% endif %}

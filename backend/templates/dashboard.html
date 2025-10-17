@@ -7,23 +7,23 @@
     <!-- Header Stats -->
     <div class="bg-white p-6 rounded-lg shadow">
       <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4 text-center">
-        <div>
+        <div class="cursor-pointer hover:bg-blue-50 rounded-lg p-2 transition-colors" onclick="filterByStatus('ALL')">
           <div id="total-count" class="text-3xl font-bold text-blue-600">{{ subdomains|length }}</div>
           <div class="text-sm text-gray-600">Total</div>
         </div>
-        <div>
+        <div class="cursor-pointer hover:bg-green-50 rounded-lg p-2 transition-colors" onclick="filterByStatus('UP')">
           <div id="up-count" class="text-3xl font-bold text-green-600">{{ subdomains|selectattr('status', 'equalto', 'UP')|list|length }}</div>
           <div class="text-sm text-gray-600">Up</div>
         </div>
-        <div>
+        <div class="cursor-pointer hover:bg-red-50 rounded-lg p-2 transition-colors" onclick="filterByStatus('DOWN')">
           <div id="down-count" class="text-3xl font-bold text-red-600">{{ subdomains|selectattr('status', 'equalto', 'DOWN')|list|length }}</div>
           <div class="text-sm text-gray-600">Down</div>
         </div>
-        <div>
+        <div class="cursor-pointer hover:bg-yellow-50 rounded-lg p-2 transition-colors" onclick="filterByStatus('FLAPPING')">
           <div id="flapping-count" class="text-3xl font-bold text-yellow-600">{{ subdomains|selectattr('status', 'equalto', 'FLAPPING')|list|length }}</div>
           <div class="text-sm text-gray-600">Flapping</div>
         </div>
-        <div>
+        <div class="cursor-pointer hover:bg-amber-50 rounded-lg p-2 transition-colors" onclick="filterByStatus('UNKNOWN')">
           <div id="unknown-count" class="text-3xl font-bold text-amber-600">{{ subdomains|selectattr('status', 'equalto', 'UNKNOWN')|list|length }}</div>
           <div class="text-sm text-gray-600">Unknown</div>
         </div>
@@ -40,9 +40,10 @@
     </div>
 
     <!-- Project Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div id="project-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {% for subdomain in subdomains %}
       <div class="monitoring-card cursor-pointer hover:shadow-lg transition-shadow"
+           data-status="{{ subdomain.status }}"
            onclick="showTimeSeries('{{ subdomain.subdomain }}')">
         <div class="flex items-center justify-between mb-3">
           <h3 class="font-semibold text-lg truncate">{{ subdomain.subdomain }}</h3>
@@ -77,8 +78,8 @@
           <div class="flex justify-between">
             <span class="text-gray-600">Last Check:</span>
             <span class="font-medium text-xs">
-              {% if subdomain.last_check %}
-                {{ subdomain.last_check.strftime('%H:%M') }}
+              {% if subdomain.last_check_utc8 %}
+                {{ subdomain.last_check_utc8.strftime('%H:%M UTC+8') }}
               {% else %}
                 Never
               {% endif %}
@@ -92,9 +93,9 @@
     <!-- Time Series Modal -->
     <div id="timeseries-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
       <div class="flex items-start justify-center min-h-screen p-4 pt-20">
-        <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-screen overflow-hidden">
-          <div class="p-6 border-b">
-            <div class="flex justify-between items-center">
+        <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[calc(100vh-6rem)] flex flex-col">
+          <div class="p-6 border-b flex-shrink-0">
+            <div class="flex justify-between items-center mb-4">
               <h3 class="text-xl font-bold" id="modal-title">Time Series</h3>
               <button onclick="closeTimeSeries()" class="text-gray-400 hover:text-gray-600">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -102,8 +103,20 @@
                 </svg>
               </button>
             </div>
+            <!-- Time Range Filters -->
+            <div class="flex gap-2">
+              <button id="filter-5m" onclick="changeTimeRange(5/60)" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-gray-100 text-gray-600 hover:bg-gray-200">
+                5 Minutes
+              </button>
+              <button id="filter-1h" onclick="changeTimeRange(1)" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-gray-100 text-gray-600 hover:bg-gray-200">
+                1 Hour
+              </button>
+              <button id="filter-24h" onclick="changeTimeRange(24)" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-blue-600 text-white hover:bg-blue-700">
+                24 Hours
+              </button>
+            </div>
           </div>
-          <div class="p-6">
+          <div class="p-6 overflow-y-auto flex-1">
             <div id="timeseries-chart" class="w-full h-96">
               <div class="flex items-center justify-center h-full">
                 <div class="text-gray-500">Loading time series data...</div>
@@ -118,8 +131,8 @@
 <!-- DNS Discoveries Modal -->
 <div id="dns-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
   <div class="flex items-start justify-center min-h-screen p-4 pt-20">
-    <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-screen overflow-hidden">
-      <div class="p-6 border-b">
+    <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[calc(100vh-6rem)] flex flex-col">
+      <div class="p-6 border-b flex-shrink-0">
         <div class="flex justify-between items-center">
           <h3 class="text-xl font-bold">DNS Discoveries - Inactive Subdomains</h3>
           <button onclick="closeDNSModal()" class="text-gray-400 hover:text-gray-600">
@@ -129,14 +142,14 @@
           </button>
         </div>
       </div>
-      <div class="p-6">
+      <div class="p-6 flex-shrink-0">
         <div class="mb-4">
           <p class="text-gray-600">These subdomains were discovered via DNS enumeration but are currently inactive/down. They represent infrastructure that exists but is not actively monitored.</p>
         </div>
-        <div id="dns-table" class="overflow-x-auto">
-          <div class="flex items-center justify-center h-32">
-            <div class="text-gray-500">Loading DNS discoveries...</div>
-          </div>
+      </div>
+      <div id="dns-table" class="overflow-x-auto overflow-y-auto flex-1 px-6 pb-6">
+        <div class="flex items-center justify-center h-32">
+          <div class="text-gray-500">Loading DNS discoveries...</div>
         </div>
       </div>
     </div>
@@ -146,8 +159,8 @@
 <!-- Agent Status Modal -->
 <div id="agent-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
   <div class="flex items-start justify-center min-h-screen p-4 pt-20">
-    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-screen overflow-hidden">
-      <div class="p-6 border-b">
+    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[calc(100vh-6rem)] flex flex-col">
+      <div class="p-6 border-b flex-shrink-0">
         <div class="flex justify-between items-center">
           <h3 class="text-xl font-bold">Agent Status - Monitoring Locations</h3>
           <button onclick="closeAgentModal()" class="text-gray-400 hover:text-gray-600">
@@ -157,7 +170,7 @@
           </button>
         </div>
       </div>
-      <div class="p-6">
+      <div class="p-6 overflow-y-auto flex-1">
         <div class="mb-4">
           <p class="text-gray-600">Geo-distributed monitoring agents report from different locations to ensure comprehensive coverage. Agents are considered online if they have reported within the last 10 minutes.</p>
         </div>
@@ -191,21 +204,32 @@
 </div>
 
 <script>
+// Global variables for time series
+let currentTimeRange = 24; // Default to 24 hours
+let currentSubdomain = '';
+let allChecksData = [];
+
 async function showTimeSeries(subdomain) {
     const modal = document.getElementById('timeseries-modal');
     const title = document.getElementById('modal-title');
     const chart = document.getElementById('timeseries-chart');
 
+    currentSubdomain = subdomain;
     title.textContent = `Time Series - ${subdomain}`;
     chart.innerHTML = '<div class="flex items-center justify-center h-full"><div class="text-gray-500">Loading time series data...</div></div>';
     modal.classList.remove('hidden');
+
+    // Reset to default 24 hours when opening modal
+    currentTimeRange = 24;
+    updateFilterButtons();
 
     try {
         const response = await fetch(`/api/subdomains/${subdomain}/checks`);
         const data = await response.json();
 
         if (data.checks && data.checks.length > 0) {
-            renderTimeSeriesChart(data.checks, subdomain);
+            allChecksData = data.checks;
+            renderTimeSeriesChart(data.checks, subdomain, currentTimeRange);
         } else {
             chart.innerHTML = '<div class="flex items-center justify-center h-full"><div class="text-gray-500">No time series data available</div></div>';
         }
@@ -214,18 +238,47 @@ async function showTimeSeries(subdomain) {
     }
 }
 
+function changeTimeRange(hours) {
+    currentTimeRange = hours;
+    updateFilterButtons();
+    if (currentSubdomain && allChecksData.length > 0) {
+        renderTimeSeriesChart(allChecksData, currentSubdomain, currentTimeRange);
+    }
+}
+
+function updateFilterButtons() {
+    // Reset all buttons to default style
+    document.getElementById('filter-5m').className = 'px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-gray-100 text-gray-600 hover:bg-gray-200';
+    document.getElementById('filter-1h').className = 'px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-gray-100 text-gray-600 hover:bg-gray-200';
+    document.getElementById('filter-24h').className = 'px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-gray-100 text-gray-600 hover:bg-gray-200';
+    
+    // Highlight active button
+    if (currentTimeRange <= 0.1) { // 5 minutes (5/60 = 0.0833...)
+        document.getElementById('filter-5m').className = 'px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-blue-600 text-white hover:bg-blue-700';
+    } else if (currentTimeRange === 1) {
+        document.getElementById('filter-1h').className = 'px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-blue-600 text-white hover:bg-blue-700';
+    } else {
+        document.getElementById('filter-24h').className = 'px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-blue-600 text-white hover:bg-blue-700';
+    }
+}
+
 function closeTimeSeries() {
     const modal = document.getElementById('timeseries-modal');
     modal.classList.add('hidden');
 }
 
-function renderTimeSeriesChart(checks, subdomain) {
+function renderTimeSeriesChart(checks, subdomain, hours = 24) {
     const chart = document.getElementById('timeseries-chart');
     chart.innerHTML = '';
 
+    // Filter checks by time range
+    const now = new Date();
+    const cutoffTime = new Date(now.getTime() - (hours * 60 * 60 * 1000));
+    const filteredChecks = checks.filter(check => new Date(check.time) >= cutoffTime);
+
     // Group checks by location
     const locationData = {};
-    checks.forEach(check => {
+    filteredChecks.forEach(check => {
         const location = check.location || 'EU';
         if (!locationData[location]) {
             locationData[location] = [];
@@ -238,7 +291,9 @@ function renderTimeSeriesChart(checks, subdomain) {
     });
 
     let html = '<div class="space-y-4">';
-    html += '<div class="text-sm text-gray-600">Response Time Comparison (last 24 hours)</div>';
+    // Dynamic description based on time range
+    const timeLabel = hours <= 0.1 ? 'last 5 minutes' : hours === 1 ? 'last 1 hour' : 'last 24 hours';
+    html += `<div class="text-sm text-gray-600">Response Time Comparison (${timeLabel})</div>`;
 
     // Color mapping for locations
     const locationColors = {
@@ -346,6 +401,37 @@ function renderTimeSeriesChart(checks, subdomain) {
         html += `<line x1="20" y1="${y}" x2="25" y2="${y}" stroke="#e5e7eb" stroke-width="1"></line>`;
     }
 
+    // Add X-axis labels with appropriate time formatting
+    const numXLabels = 5;
+    for (let i = 0; i < numXLabels; i++) {
+        const x = (i / (numXLabels - 1)) * 350 + 25;
+        
+        // Get a representative time point for this x position
+        const firstLocation = Object.keys(locationData)[0];
+        if (firstLocation && locationData[firstLocation].length > 0) {
+            const dataIndex = Math.floor((i / (numXLabels - 1)) * (locationData[firstLocation].length - 1));
+            const point = locationData[firstLocation][dataIndex];
+            
+            let timeString;
+            if (hours <= 0.1) {
+                // 5 minutes: show time with seconds (HH:MM:SS)
+                timeString = point.time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+            } else if (hours === 1) {
+                // 1 hour: show time (HH:MM)
+                timeString = point.time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+            } else {
+                // 24 hours: show date and time (MM/DD HH:MM)
+                const month = String(point.time.getMonth() + 1).padStart(2, '0');
+                const day = String(point.time.getDate()).padStart(2, '0');
+                const hour = String(point.time.getHours()).padStart(2, '0');
+                const minute = String(point.time.getMinutes()).padStart(2, '0');
+                timeString = `${month}/${day} ${hour}:${minute}`;
+            }
+            
+            html += `<text x="${x}" y="240" class="text-xs fill-gray-500" text-anchor="middle">${timeString}</text>`;
+        }
+    }
+
     html += '</svg></div>';
     html += '<div class="text-xs text-gray-500 text-center">Combined response time chart: bars for primary location, lines for comparison (lower is better)</div>';
     html += '</div>';
@@ -450,5 +536,23 @@ document.getElementById('agent-modal').addEventListener('click', function(e) {
         closeAgentModal();
     }
 });
+
+// Filter monitoring cards by status
+function filterByStatus(status) {
+    const cards = document.querySelectorAll('.monitoring-card');
+    
+    cards.forEach(card => {
+        if (status === 'ALL') {
+            card.style.display = '';
+        } else {
+            const cardStatus = card.getAttribute('data-status');
+            if (cardStatus === status) {
+                card.style.display = '';
+            } else {
+                card.style.display = 'none';
+            }
+        }
+    });
+}
 </script>
 {% endblock %}

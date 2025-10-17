@@ -241,14 +241,15 @@ class UptimeChecker:
         return self.db_pool
 
     async def get_active_subdomains(self):
-        """Get all active subdomains from database"""
+        """Get all active subdomains from database with their check paths"""
         pool = await self.get_db_pool()
         rows = await pool.fetch("""
-            SELECT subdomain FROM monitoring.subdomains
+            SELECT subdomain, COALESCE(check_path, '/') as check_path 
+            FROM monitoring.subdomains
             WHERE active = true
             ORDER BY subdomain
         """)
-        return [row['subdomain'] for row in rows]
+        return [{'subdomain': row['subdomain'], 'check_path': row['check_path']} for row in rows]
 
     async def get_active_subdomains_with_retry(self, max_retries=3):
         """Get active subdomains with retry logic for database connection issues"""
@@ -261,7 +262,7 @@ class UptimeChecker:
                 print(f"⚠️  Database connection attempt {attempt + 1} failed, retrying...")
                 await asyncio.sleep(1)  # Wait 1 second before retry
 
-    async def check_subdomain(self, session, subdomain):
+    async def check_subdomain(self, session, subdomain, check_path='/'):
         """Check a single subdomain and return results"""
         result = {
             'subdomain': subdomain,
@@ -279,7 +280,7 @@ class UptimeChecker:
             # Try HTTPS first, then HTTP
             for protocol in ['https', 'http']:
                 try:
-                    url = f"{protocol}://{subdomain}"
+                    url = f"{protocol}://{subdomain}{check_path}"
                     async with session.get(url, allow_redirects=True) as response:
                         result['status_code'] = response.status
                         result['response_time_ms'] = (time.time() - start_time) * 1000
@@ -385,7 +386,7 @@ class UptimeChecker:
         ) as session:
 
             # Check all subdomains concurrently
-            tasks = [self.check_subdomain(session, subdomain) for subdomain in subdomains]
+            tasks = [self.check_subdomain(session, sub['subdomain'], sub['check_path']) for sub in subdomains]
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
             successful_checks = 0

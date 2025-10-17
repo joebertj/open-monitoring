@@ -63,6 +63,7 @@
             const totalCount = document.getElementById('total-count');
             const upCount = document.getElementById('up-count');
             const downCount = document.getElementById('down-count');
+            const flappingCount = document.getElementById('flapping-count');
             const unknownCount = document.getElementById('unknown-count');
             
             if (totalCount) {
@@ -70,17 +71,22 @@
             }
             
             if (upCount) {
-                const upServices = subdomains.filter(s => s.status === 'up').length;
+                const upServices = subdomains.filter(s => s.status === 'UP').length;
                 upCount.textContent = upServices;
             }
             
             if (downCount) {
-                const downServices = subdomains.filter(s => s.status === 'down').length;
+                const downServices = subdomains.filter(s => s.status === 'DOWN').length;
                 downCount.textContent = downServices;
             }
             
+            if (flappingCount) {
+                const flappingServices = subdomains.filter(s => s.status === 'FLAPPING').length;
+                flappingCount.textContent = flappingServices;
+            }
+            
             if (unknownCount) {
-                const unknownServices = subdomains.filter(s => s.status === 'unknown').length;
+                const unknownServices = subdomains.filter(s => s.status === 'UNKNOWN').length;
                 unknownCount.textContent = unknownServices;
             }
 
@@ -88,19 +94,24 @@
             subdomains.forEach(subdomain => {
                 const card = document.querySelector(`[onclick*="${subdomain.subdomain}"]`);
                 if (card) {
+                    // Update data-status attribute
+                    card.setAttribute('data-status', subdomain.status);
+                    
                     // Update status - find the status badge (has rounded classes)
                     const statusSpan = card.querySelector('.px-2.py-1.rounded-full');
                     if (statusSpan) {
                         let statusClass = 'px-2 py-1 rounded-full text-xs font-medium ';
-                        if (subdomain.status === 'up') {
+                        if (subdomain.status === 'UP') {
                             statusClass += 'bg-green-100 text-green-800';
-                        } else if (subdomain.status === 'down') {
+                        } else if (subdomain.status === 'DOWN') {
                             statusClass += 'bg-red-100 text-red-800';
+                        } else if (subdomain.status === 'FLAPPING') {
+                            statusClass += 'bg-yellow-100 text-yellow-800';
                         } else {
-                            statusClass += 'bg-gray-100 text-gray-800';
+                            statusClass += 'bg-amber-100 text-amber-800';
                         }
                         statusSpan.className = statusClass;
-                        statusSpan.textContent = subdomain.status.toUpperCase();
+                        statusSpan.textContent = subdomain.status;
                     }
 
                     // Update uptime
@@ -119,10 +130,13 @@
                     // Update last check time
                     if (uptimeElements.length >= 4 && subdomain.last_check) {
                         const date = new Date(subdomain.last_check);
+                        // Add 8 hours for UTC+8 display
+                        date.setHours(date.getHours() + 8);
                         uptimeElements[3].textContent = date.toLocaleTimeString('en-US', {
                             hour: '2-digit',
-                            minute: '2-digit'
-                        });
+                            minute: '2-digit',
+                            timeZone: 'UTC'
+                        }) + ' UTC+8';
                     }
                 }
             });

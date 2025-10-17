@@ -7,7 +7,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 import asyncpg
 import json
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from typing import Dict, Any
@@ -308,6 +308,11 @@ async def alerts_page(request: Request):
         
         # Filter for non-UP subdomains (DOWN, FLAPPING, UNKNOWN)
         alert_subdomains = [s for s in all_subdomains if s['status'] != 'UP']
+        
+        # Add UTC+8 time to subdomains for consistent display
+        for subdomain in alert_subdomains:
+            if subdomain.get('last_check'):
+                subdomain['last_check_utc8'] = subdomain['last_check'] + timedelta(hours=8)
         
         return templates.TemplateResponse("alerts.html", {
             "request": request,
@@ -632,13 +637,14 @@ async def get_subdomains(request: Request):
         SELECT
             s.id, s.domain, s.subdomain, s.discovered_at,
             s.last_seen, s.active, s.platform, s.last_platform_check,
+            COALESCE(s.check_path, '/') as check_path,
             COUNT(uc.subdomain) as check_count,
             AVG(CASE WHEN uc.up THEN 1 ELSE 0 END) * 100 as uptime_percentage,
             MAX(uc.time) as last_check
         FROM monitoring.subdomains s
         LEFT JOIN monitoring.uptime_checks uc ON s.subdomain = uc.subdomain
             AND uc.time > NOW() - INTERVAL '24 hours'
-        GROUP BY s.id, s.domain, s.subdomain, s.discovered_at, s.last_seen, s.active, s.platform, s.last_platform_check
+        GROUP BY s.id, s.domain, s.subdomain, s.discovered_at, s.last_seen, s.active, s.platform, s.last_platform_check, s.check_path
         ORDER BY s.active DESC, s.last_seen DESC
     """)
 
@@ -653,6 +659,7 @@ async def get_subdomains(request: Request):
             "active": row["active"],
             "platform": row["platform"],
             "last_platform_check": row["last_platform_check"].isoformat() if row["last_platform_check"] else None,
+            "check_path": row["check_path"],
             "check_count": row["check_count"] or 0,
             "uptime_percentage": round(float(row["uptime_percentage"] or 0), 2),
             "last_check": row["last_check"].isoformat() if row["last_check"] else None
