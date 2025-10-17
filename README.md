@@ -297,7 +297,7 @@ Or run the migration script:
 
 ```bash
 export DATABASE_URL='postgresql://user:pass@host:port/dbname'
-./run_migration.sh
+./database/run_migration.sh
 ```
 
 **Example use cases:**
@@ -389,13 +389,18 @@ For server deployments, use the automated deployment script:
 
 ```bash
 # Run deployment script (pulls code + restarts containers)
-./deploy.sh
+python3 deployment/deploy_monitoring.py
+
+# Check status only
+python3 deployment/deploy_monitoring.py --status
 ```
 
 This script will:
 1. Pull the latest code from git
-2. Restart all containers to apply changes
-3. Display deployment status
+2. Rebuild the Docker backend image
+3. Restart all containers to apply changes
+4. Run health checks
+5. Display deployment status
 
 ### Manual Deployment
 

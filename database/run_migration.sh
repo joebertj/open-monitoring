@@ -11,7 +11,9 @@ fi
 echo "🔧 Running check_path migration..."
 
 # Extract database connection details from DATABASE_URL
-psql "$DATABASE_URL" -f database/add_check_path.sql
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+psql "$DATABASE_URL" -f "$SCRIPT_DIR/add_check_path.sql"
 
 if [ $? -eq 0 ]; then
     echo "✅ Migration completed successfully!"

@@ -26,12 +26,12 @@ Implemented custom check path support so different subdomains can be monitored a
    - Updated `/api/subdomains` endpoint to include `check_path` in response
    - This allows geo-monitor agents to know which path to check
 
-4. **Geo-Monitor Script** (`deploy_geo_monitor.sh`)
+4. **Geo-Monitor Script** (`deployment/deploy_geo_monitor.sh`)
    - Updated `check_subdomain()` function to accept `check_path` parameter
    - Modified main loop to parse `check_path` from API response
    - Now checks the correct endpoint for each subdomain
 
-5. **Migration Runner** (`run_migration.sh`)
+5. **Migration Runner** (`database/run_migration.sh`)
    - Created helper script to run the database migration
    - Requires `DATABASE_URL` environment variable
 
@@ -40,7 +40,7 @@ Implemented custom check path support so different subdomains can be monitored a
 1. Run the database migration:
    ```bash
    export DATABASE_URL='postgresql://user:pass@host:port/dbname'
-   ./run_migration.sh
+   ./database/run_migration.sh
    ```
 
 2. Restart the monitoring service:
