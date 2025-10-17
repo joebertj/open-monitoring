@@ -34,6 +34,9 @@
         </div>
     </main>
 
+    <!-- Modals (outside main, at body level for proper overlay) -->
+    {% block modals %}{% endblock %}
+
     <script>
         // Auto-refresh dashboard data every 30 seconds without full page reload
         setInterval(async function() {
