@@ -79,6 +79,12 @@ echo "========================================"
 # Check command line arguments
 TARGET="${1:-all}"
 
+if [ "$TARGET" = "eu" ] || [ "$TARGET" = "all" ]; then
+    # Deploy to Europe (local/central server)
+    echo "🇪🇺 Deploying to Europe..."
+    deploy_to_server "joebertj@10.27.79.2" "$HOME/.ssh/klti" "EU"
+fi
+
 if [ "$TARGET" = "sg" ] || [ "$TARGET" = "all" ]; then
     # Deploy to Singapore
     echo "📍 Deploying to Singapore..."

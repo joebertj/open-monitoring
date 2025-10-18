@@ -15,7 +15,7 @@ if [ -z "$TOKEN" ]; then
     exit 1
 fi
 
-echo "Agent: $LOCATION started (token: ${TOKEN:0:16}...)"
+echo "Agent: $LOCATION started (token: $(echo "$TOKEN" | cut -c1-16)...)"
 
 # Check single subdomain
 check_subdomain() {

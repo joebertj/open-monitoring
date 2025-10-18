@@ -102,14 +102,23 @@ let currentSubdomain = '';
 let allChecksData = [];
 
 async function showTimeSeries(subdomain) {
+    console.log('showTimeSeries called for:', subdomain);
     const modal = document.getElementById('timeseries-modal');
     const title = document.getElementById('modal-title');
     const chart = document.getElementById('timeseries-chart');
+    
+    console.log('Modal element:', modal);
+    console.log('Modal classes before:', modal?.className);
 
     currentSubdomain = subdomain;
     title.textContent = `Time Series - ${subdomain}`;
     chart.innerHTML = '<div class="flex items-center justify-center h-full"><div class="text-gray-500">Loading time series data...</div></div>';
     modal.classList.remove('hidden');
+    modal.style.display = 'block';
+    modal.style.zIndex = '9999';
+    
+    console.log('Modal classes after:', modal?.className);
+    console.log('Modal display:', modal?.style.display);
 
     // Reset to default 24 hours when opening modal
     currentTimeRange = 24;
@@ -157,6 +166,7 @@ function updateFilterButtons() {
 function closeTimeSeries() {
     const modal = document.getElementById('timeseries-modal');
     modal.classList.add('hidden');
+    modal.style.display = 'none';
 }
 
 function renderTimeSeriesChart(checks, subdomain, hours = 24) {
