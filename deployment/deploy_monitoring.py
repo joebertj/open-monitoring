@@ -148,20 +148,36 @@ class MonitoringDeploymentServer:
             if not build_result["success"]:
                 logger.warning(f"⚠️ Docker build had issues: {build_result['error']}")
 
-            # Step 3: Restart Docker containers
-            logger.info("🐳 Step 3: Restarting Docker containers...")
-            restart_result = await self.execute_command(
-                "/opt/homebrew/bin/docker restart monitoring-backend monitoring-db",
+            # Step 3: Use docker-compose to rebuild and restart with new image
+            logger.info("🐳 Step 3: Rebuilding and restarting containers with docker-compose...")
+            compose_result = await self.execute_command(
+                "cd docker && /opt/homebrew/bin/docker-compose up -d --build --force-recreate backend",
                 working_dir,
             )
 
-            if not restart_result["success"]:
-                return {
-                    "success": False,
-                    "error": "Failed to restart Docker containers",
-                    "details": restart_result,
-                    "step": "docker_restart",
-                }
+            if not compose_result["success"]:
+                logger.warning(f"⚠️ Docker-compose had issues: {compose_result['error']}")
+                # Fallback to manual restart
+                logger.info("🔄 Falling back to manual container recreation...")
+                stop_result = await self.execute_command(
+                    "/opt/homebrew/bin/docker stop monitoring-backend",
+                    working_dir,
+                )
+                remove_result = await self.execute_command(
+                    "/opt/homebrew/bin/docker rm monitoring-backend",
+                    working_dir,
+                )
+                start_result = await self.execute_command(
+                    "cd docker && /opt/homebrew/bin/docker-compose up -d backend",
+                    working_dir,
+                )
+                if not start_result["success"]:
+                    return {
+                        "success": False,
+                        "error": "Failed to restart backend container",
+                        "details": start_result,
+                        "step": "docker_restart_fallback",
+                    }
 
             # Step 3: Wait for services to be ready
             logger.info("⏳ Step 3: Waiting for services to start...")
