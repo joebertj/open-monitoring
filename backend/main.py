@@ -312,40 +312,6 @@ async def dashboard(request: Request):
             "error": str(e)
         })
 
-@app.get("/alerts", response_class=HTMLResponse)
-async def alerts_page(request: Request):
-    """Serve the alerts page - shows all non-UP subdomains"""
-    try:
-        # Get all subdomains
-        all_subdomains = await get_subdomains_with_stats()
-        
-        # Filter for non-UP subdomains (DOWN, FLAPPING, UNKNOWN)
-        alert_subdomains = [s for s in all_subdomains if s['status'] != 'UP']
-        
-        # Add UTC+8 time to subdomains for consistent display
-        for subdomain in alert_subdomains:
-            if subdomain.get('last_check'):
-                subdomain['last_check_utc8'] = subdomain['last_check'] + timedelta(hours=8)
-        
-        return templates.TemplateResponse("alerts.html", {
-            "request": request,
-            "subdomains": alert_subdomains,
-            "total_alerts": len(alert_subdomains),
-            "down_count": len([s for s in alert_subdomains if s['status'] == 'DOWN']),
-            "flapping_count": len([s for s in alert_subdomains if s['status'] == 'FLAPPING']),
-            "unknown_count": len([s for s in alert_subdomains if s['status'] == 'UNKNOWN'])
-        })
-    except Exception as e:
-        return templates.TemplateResponse("alerts.html", {
-            "request": request,
-            "subdomains": [],
-            "total_alerts": 0,
-            "down_count": 0,
-            "flapping_count": 0,
-            "unknown_count": 0,
-            "error": str(e)
-        })
-
 @app.get("/test-api")
 def root():
     print("API root endpoint called")

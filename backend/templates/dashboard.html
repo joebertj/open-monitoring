@@ -592,8 +592,8 @@ function filterByStatus(status) {
               </button>
             </div>
           </div>
-          <div class="p-6 overflow-y-auto flex-1">
-            <div id="timeseries-chart" class="w-full h-96">
+          <div class="p-6 overflow-y-auto flex-1" style="max-height: calc(100vh - 250px);">
+            <div id="timeseries-chart" class="w-full min-h-96" style="min-height: 500px;">
               <div class="flex items-center justify-center h-full">
                 <div class="text-gray-500">Loading time series data...</div>
               </div>
