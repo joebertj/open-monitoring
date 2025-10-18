@@ -117,6 +117,9 @@ async function showTimeSeries(subdomain) {
     modal.style.display = 'block';
     modal.style.zIndex = '9999';
     
+    // Prevent body scroll when modal is open
+    document.body.style.overflow = 'hidden';
+    
     console.log('Modal classes after:', modal?.className);
     console.log('Modal display:', modal?.style.display);
 
@@ -167,6 +170,9 @@ function closeTimeSeries() {
     const modal = document.getElementById('timeseries-modal');
     modal.classList.add('hidden');
     modal.style.display = 'none';
+    
+    // Re-enable body scroll when modal is closed
+    document.body.style.overflow = '';
 }
 
 function renderTimeSeriesChart(checks, subdomain, hours = 24) {
@@ -409,6 +415,9 @@ async function showDNSDiscoveries() {
     const modal = document.getElementById('dns-modal');
     modal.classList.remove('hidden');
     
+    // Prevent body scroll when modal is open
+    document.body.style.overflow = 'hidden';
+    
     const dnsTable = document.getElementById('dns-table');
     dnsTable.innerHTML = '<div class="flex items-center justify-center h-32"><div class="text-gray-500">Loading DNS discoveries...</div></div>';
     
@@ -470,20 +479,29 @@ async function showDNSDiscoveries() {
 function closeDNSModal() {
     const modal = document.getElementById('dns-modal');
     modal.classList.add('hidden');
+    
+    // Re-enable body scroll when modal is closed
+    document.body.style.overflow = '';
 }
 
 // Agent Status modal
 function showAgentStatus() {
     const modal = document.getElementById('agent-modal');
     modal.classList.remove('hidden');
+    
+    // Prevent body scroll when modal is open
+    document.body.style.overflow = 'hidden';
 }
 
 function closeAgentModal() {
     const modal = document.getElementById('agent-modal');
     modal.classList.add('hidden');
+    
+    // Re-enable body scroll when modal is closed
+    document.body.style.overflow = '';
 }
 
-// Close modals when clicking outside (with null checks)
+// Close modals when clicking outside (with null checks) or pressing Escape
 const timeseriesModal = document.getElementById('timeseries-modal');
 if (timeseriesModal) {
     timeseriesModal.addEventListener('click', function(e) {
@@ -510,6 +528,21 @@ if (agentModal) {
         }
     });
 }
+
+// Close any modal with Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        if (timeseriesModal && !timeseriesModal.classList.contains('hidden')) {
+            closeTimeSeries();
+        }
+        if (dnsModal && !dnsModal.classList.contains('hidden')) {
+            closeDNSModal();
+        }
+        if (agentModal && !agentModal.classList.contains('hidden')) {
+            closeAgentModal();
+        }
+    }
+});
 
 // Filter monitoring cards by status
 function filterByStatus(status) {
