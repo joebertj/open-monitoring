@@ -40,14 +40,20 @@ check_subdomain() {
     echo "{\"subdomain\":\"$subdomain\",\"status_code\":$http_code,\"response_time_ms\":${response_time:-0},\"up\":$up,\"location\":\"$LOCATION\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\"}"
 }
 
-# Get subdomains with check_path from API (BusyBox compatible)
+# Get subdomains with check_path from API (cross-platform compatible)
 get_subdomains() {
-    # Parse JSON to get subdomain|check_path pairs
-    # Simple sed parsing that works with BusyBox
+    # Parse JSON using grep and simple sed - works on macOS, Linux, and BusyBox
     curl -s --max-time 30 "$CENTRAL_API/api/subdomains" 2>/dev/null | \
         sed 's/},{/}\n{/g' | \
         grep '"subdomain"' | \
-        sed 's/.*"subdomain":"\([^"]*\)".*"check_path":"\([^"]*\)".*/\1|\2/; t; s/.*"subdomain":"\([^"]*\)".*/\1|\//'
+        while IFS= read -r line; do
+            # Extract subdomain
+            subdomain=$(echo "$line" | sed 's/.*"subdomain":"\([^"]*\)".*/\1/')
+            # Extract check_path if exists, default to /
+            check_path=$(echo "$line" | grep -o '"check_path":"[^"]*"' | sed 's/"check_path":"\([^"]*\)"/\1/' || echo "/")
+            [ -z "$check_path" ] && check_path="/"
+            echo "$subdomain|$check_path"
+        done
 }
 
 # Report results
