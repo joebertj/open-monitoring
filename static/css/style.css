@@ -262,12 +262,23 @@ body {
   padding: 1.5rem;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1), 0 4px 10px rgba(0, 0, 0, 0.05);
   transition: all 0.3s ease;
+  cursor: pointer;
+  position: relative;
+  pointer-events: auto;
+}
+
+.monitoring-card * {
+  pointer-events: none;
 }
 
 .monitoring-card:hover {
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15), 0 8px 16px rgba(0, 0, 0, 0.1);
   transform: translateY(-2px);
   border-color: #3b82f6;
+}
+
+.monitoring-card:active {
+  transform: translateY(0);
 }
 
 /* Responsive Design */
